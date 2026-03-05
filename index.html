@@ -425,46 +425,43 @@ canvas { display: block; }
 
   </div>
 
-  <!-- ROW 2: Stacked Bar + Scatter + Halving -->
-  <div class="chart-grid-bot">
-
-    <div class="card red-top">
+  <!-- ROW 2: Revenue Loss (full width) -->
+  <div class="card green-top" style="margin-bottom:16px">
       <div class="card-header">
         <div>
-          <div class="card-title">Chart 2 · Wasted Cycles</div>
-          <div class="card-subtitle">Stacked: Effective vs Wasted per Bucket</div>
+          <div class="card-title">Chart 2 · Cumulative Revenue Loss</div>
+          <div class="card-subtitle">USD left on table by staying on V1 · compounding daily</div>
         </div>
-        <div class="card-badge badge-red">14D BUCKETS</div>
+        <div class="card-badge badge-green" id="lossHashrateLabel">@ 100 PH/s</div>
       </div>
-      <canvas id="stackedChart" height="200"></canvas>
-      <div class="legend" style="margin-top:10px">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--v2)"></div>Effective cycles</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--v1)"></div>Wasted (V1 stales)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,229,160,0.4)"></div>Recovered (V2)</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--hp)"></div>Hashprice</div>
+      <canvas id="stackedChart" height="130"></canvas>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
+        <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Hashrate (PH/s)</div>
+        <input type="range" id="hashrateSlider" min="1" max="1000" value="100" step="1"
+          style="flex:1;min-width:80px;accent-color:var(--v2);cursor:pointer" oninput="updateLossChart(this.value)">
+        <div style="font-size:12px;font-weight:700;color:var(--v2);font-family:var(--font);width:60px" id="hashrateVal">100 PH/s</div>
       </div>
-    </div>
-
-    <div class="card blue-top">
-      <div class="card-header">
+      <div style="display:flex;gap:32px;margin-top:10px;flex-wrap:wrap">
         <div>
-          <div class="card-title">Chart 3 · Job Negotiation Scatter</div>
-          <div class="card-subtitle">Cycle Efficiency Frontier · Protocol vs Template Source</div>
+          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">30-Day Loss (V1)</div>
+          <div style="font-size:18px;font-weight:700;color:var(--v1);font-family:var(--font)" id="loss30d">—</div>
         </div>
-        <div class="card-badge" style="background:rgba(74,144,217,0.1);color:var(--neutral);border:1px solid rgba(74,144,217,0.25)">CHANNELS</div>
+        <div>
+          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">1-Year Loss (V1)</div>
+          <div style="font-size:18px;font-weight:700;color:var(--v1);font-family:var(--font)" id="loss1y">—</div>
+        </div>
+        <div>
+          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">V2 Recovery/Day</div>
+          <div style="font-size:18px;font-weight:700;color:var(--v2);font-family:var(--font)" id="lossPerDay">—</div>
+        </div>
       </div>
-      <canvas id="scatterChart" height="200"></canvas>
       <div class="legend" style="margin-top:10px">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--v1)"></div>V1 · Pool Template</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--v2)"></div>V2 · Pool Template</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--hp)"></div>V2 + Job Negotiator</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--muted);border-top:1px dashed var(--muted);height:0"></div>Theoretical max</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--v1)"></div>Cumulative loss staying on V1</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--v2)"></div>Revenue recovered by V2</div>
       </div>
-    </div>
-
   </div>
 
-  <!-- ROW 3: Halving Strip full width -->
+    <!-- ROW 3: Halving Strip full width -->
   <div class="card gold-top" style="margin-top:16px">
     <div class="card-header">
       <div>
@@ -715,162 +712,112 @@ function buildTimeline() {
 // CHART 2: STACKED BAR (WASTED CYCLES)
 // ════════════════════════════════════════════
 let stackedChart;
+let currentHashratePH = 100;
+
+function calcLoss(hashratePH) {
+  // Daily revenue difference V1 vs V2 per TH/s, scaled to hashrate
+  const hashrateTH = hashratePH * 1e6; // PH → TH
+  const dailyLossPerTH = HP_USD * (V1_REJECT - V2_REJECT); // USD lost per TH/day on V1
+  const dailyLoss = dailyLossPerTH * hashrateTH;
+  return dailyLoss;
+}
+
 function buildStacked() {
   if (stackedChart) { stackedChart.destroy(); stackedChart = null; }
   const ctx = document.getElementById('stackedChart').getContext('2d');
-  const n = 14;
-  const labels = Array.from({length: n}, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (n - 1 - i) * 2);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const days = 90;
+  const labels = Array.from({length: days}, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
+    return i % 15 === 0 ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
   });
 
-  const hpSlice = HP30.filter((_, i) => i % 2 === 0).slice(0, n);
-  const miner = MINERS[minerKey];
-  const totalCycles = miner.hashrateTH;
+  const dailyLoss = calcLoss(currentHashratePH);
 
-  const effective = hpSlice.map(() => +(totalCycles * (1 - V2_REJECT)).toFixed(3));
-  const wastedV1  = hpSlice.map(() => +(totalCycles * (V1_REJECT - V2_REJECT)).toFixed(3));
-  const wastedBase= hpSlice.map(() => +(totalCycles * V2_REJECT).toFixed(4));
+  // Cumulative loss line (V1 vs V2) — grows each day
+  const cumulativeLoss = Array.from({length: days}, (_, i) => +(dailyLoss * (i + 1)).toFixed(4));
+
+  // V2 recovery line — mirror of loss (what you get back)
+  const v2Recovery = cumulativeLoss.map(v => +v.toFixed(4));
+
+  // Gradient for area under loss curve
+  const gradLoss = ctx.createLinearGradient(0, 0, 0, 200);
+  gradLoss.addColorStop(0, 'rgba(255,82,82,0.25)');
+  gradLoss.addColorStop(1, 'rgba(255,82,82,0)');
+
+  const gradV2 = ctx.createLinearGradient(0, 0, 0, 200);
+  gradV2.addColorStop(0, 'rgba(0,229,160,0.15)');
+  gradV2.addColorStop(1, 'rgba(0,229,160,0)');
 
   stackedChart = new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels,
       datasets: [
         {
-          label: 'Effective (V2)',
-          data: effective,
-          backgroundColor: 'rgba(0,229,160,0.55)',
-          stack: 'cycles',
-          borderRadius: 2,
-          borderSkipped: false,
-        },
-        {
-          label: 'Recovered by V2',
-          data: wastedV1,
-          backgroundColor: 'rgba(0,229,160,0.2)',
-          stack: 'cycles',
-          borderRadius: 0,
-        },
-        {
-          label: 'Wasted (unavoidable)',
-          data: wastedBase,
-          backgroundColor: 'rgba(255,82,82,0.45)',
-          stack: 'cycles',
-          borderRadius: 0,
-        },
-        {
-          label: 'Hashprice',
-          data: hpSlice,
-          type: 'line',
-          borderColor: '#ffe566',
+          label: 'Cumulative V1 loss (USD)',
+          data: cumulativeLoss,
+          borderColor: '#ff5252',
+          backgroundColor: gradLoss,
+          fill: true,
           borderWidth: 2,
-          pointRadius: 3,
-          pointBackgroundColor: '#ffe566',
-          fill: false,
-          tension: 0.4,
-          yAxisID: 'y2',
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { ...CT.tooltip }
-      },
-      scales: {
-        x: { grid: CT.xGrid, ticks: CT.xTicks, stacked: true },
-        y: {
-          grid: CT.yGrid,
-          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) + 'T' },
-          stacked: true,
+          pointRadius: 0,
+          tension: 0.1,
         },
-        y2: {
-          position: 'right',
-          grid: { display: false },
-          ticks: { color: '#ffe566', font: { family: 'IBM Plex Mono', size: 8 }, callback: v => '$'+v.toFixed(4) }
-        }
-      }
-    }
-  });
-}
-
-// ════════════════════════════════════════════
-// CHART 3: SCATTER — CYCLE EFFICIENCY FRONTIER
-// ════════════════════════════════════════════
-let scatterChart;
-function buildScatter() {
-  if (scatterChart) { scatterChart.destroy(); scatterChart = null; }
-  const ctx = document.getElementById('scatterChart').getContext('2d');
-  const miner = MINERS[minerKey];
-  const maxCycles = miner.hashrateTH;
-
-  // Generate synthetic channel data
-  function genPoints(n, rejectMean, rejectStd, hpMult, color) {
-    return Array.from({length: n}, () => {
-      const r = Math.max(0, rejectMean + (Math.random() - 0.5) * rejectStd);
-      const cycles = maxCycles * (Math.random() * 0.1 + 0.92);
-      const effCycles = cycles * (1 - r);
-      const rev = HP_USD * effCycles / maxCycles * hpMult * (0.9 + Math.random() * 0.2);
-      return { x: +effCycles.toFixed(2), y: +rev.toFixed(6) };
-    });
-  }
-
-  const v1Pool   = genPoints(18, V1_REJECT,    0.002, 1.0, '#ff5252');
-  const v2Pool   = genPoints(18, V2_REJECT,    0.0001, 1.0, '#00e5a0');
-  const v2JN     = genPoints(12, V2_REJECT*0.7, 0.00008, 1.01, '#ffe566');
-
-  // Theoretical max line
-  const maxLine = [
-    { x: maxCycles * 0.88, y: HP_USD * 0.88 },
-    { x: maxCycles * 1.01, y: HP_USD * 1.01 },
-  ];
-
-  scatterChart = new Chart(ctx, {
-    type: 'scatter',
-    data: {
-      datasets: [
-        { label: 'V1 · Pool Template', data: v1Pool, backgroundColor: 'rgba(255,82,82,0.6)', pointRadius: 5, pointHoverRadius: 7 },
-        { label: 'V2 · Pool Template', data: v2Pool, backgroundColor: 'rgba(0,229,160,0.65)', pointRadius: 5, pointHoverRadius: 7 },
-        { label: 'V2 + Job Negotiator', data: v2JN, backgroundColor: 'rgba(255,229,102,0.8)', pointRadius: 6, pointHoverRadius: 8, pointStyle: 'triangle' },
-        { label: 'Theoretical Max', data: maxLine, type: 'line', borderColor: 'rgba(74,96,128,0.6)', borderDash: [6,4], pointRadius: 0, fill: false },
+        {
+          label: 'V2 recovery (USD)',
+          data: v2Recovery,
+          borderColor: '#00e5a0',
+          backgroundColor: gradV2,
+          fill: true,
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          tension: 0.1,
+        },
       ]
     },
     options: {
       responsive: true,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
           ...CT.tooltip,
           callbacks: {
-            label: (ctx) => {
-              if (!ctx.parsed) return '';
-              return [
-                ` Protocol: ${ctx.dataset.label}`,
-                ` Eff. Cycles: ${ctx.parsed.x.toFixed(1)} TH`,
-                ` Revenue: $${ctx.parsed.y.toFixed(5)}/TH/d`,
-              ];
-            },
-            title: () => 'Channel Data Point'
+            label: (ctx) => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`,
+            title: (items) => `Day ${items[0].dataIndex + 1}`
           }
         }
       },
       scales: {
-        x: {
-          grid: CT.xGrid,
-          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) + 'T' },
-          title: { display: true, text: 'Effective Cycles (TH equiv)', color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 } }
-        },
+        x: { grid: CT.xGrid, ticks: { ...CT.xTicks, maxTicksLimit: 7 } },
         y: {
           grid: CT.yGrid,
-          ticks: { ...CT.yTicks, callback: v => '$'+v.toFixed(5) },
-          title: { display: true, text: 'Effective Rev USD/TH/d', color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 } }
+          ticks: { ...CT.yTicks, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(2)) }
         }
       }
     }
   });
+
+  // Update summary stats
+  const loss30 = dailyLoss * 30;
+  const loss365 = dailyLoss * 365;
+  document.getElementById('loss30d').textContent = '$' + (loss30 >= 1000 ? (loss30/1000).toFixed(2)+'k' : loss30.toFixed(2));
+  document.getElementById('loss1y').textContent  = '$' + (loss365 >= 1000 ? (loss365/1000).toFixed(1)+'k' : loss365.toFixed(2));
+  document.getElementById('lossPerDay').textContent = '$' + dailyLoss.toFixed(4);
+  document.getElementById('hashrateVal').textContent = currentHashratePH + ' PH/s';
+  document.getElementById('lossHashrateLabel').textContent = '@ ' + currentHashratePH + ' PH/s';
 }
+
+function updateLossChart(val) {
+  currentHashratePH = parseInt(val);
+  buildStacked();
+}
+
+// ════════════════════════════════════════════
+// CHART 3: SCATTER — CYCLE EFFICIENCY FRONTIER
+// ════════════════════════════════════════════
 
 // ════════════════════════════════════════════
 // CHART 4: HALVING STRIP
@@ -1032,11 +979,9 @@ function setMode(m, btn) {
 function updateCharts() {
   if (timelineChart) timelineChart.destroy();
   if (stackedChart) stackedChart.destroy();
-  if (scatterChart) scatterChart.destroy();
   if (halvingChart) halvingChart.destroy();
   buildTimeline();
   buildStacked();
-  buildScatter();
   buildHalving();
 }
 
@@ -1055,7 +1000,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   recalc();
   buildTimeline();
   buildStacked();
-  buildScatter();
   buildHalving();
 
   // Refresh every 90s
