@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/stratum", "destination": "/stratum-v2-cycles.html" }
+  ]
+}
