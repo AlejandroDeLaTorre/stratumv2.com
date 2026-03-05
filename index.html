@@ -229,8 +229,8 @@ select.ctrl-select {
       <div><div class="sum-label">V2 Saves / Day</div><div class="sum-value green" id="c2-daily">—</div></div>
     </div>
     <div class="legend">
-      <div class="legend-item"><div class="leg-line" style="background:var(--v1)"></div>Cumulative loss on V1</div>
-      <div class="legend-item"><div class="leg-line" style="background:var(--v2)"></div>Revenue recovered with V2</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--v1)"></div>Cumulative stale cost on V1</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--v2)"></div>Cumulative stale cost on V2 (gap = savings)</div>
     </div>
   </div>
 
@@ -397,19 +397,26 @@ function buildChart2() {
     const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
     return i % 15 === 0 ? d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
   });
-  const cumLoss = Array.from({length: days}, (_, i) => +(saving * (i + 1)).toFixed(2));
+  const dailyV1 = staleCost(c2HP, HP_USD, V1_REJECT);
+  const dailyV2 = staleCost(c2HP, HP_USD, V2_REJECT);
+  const cumV1   = Array.from({length: days}, (_, i) => +(dailyV1 * (i + 1)).toFixed(2));
+  const cumV2   = Array.from({length: days}, (_, i) => +(dailyV2 * (i + 1)).toFixed(2));
 
   const gradL = ctx.createLinearGradient(0, 0, 0, 200);
   gradL.addColorStop(0, 'rgba(255,82,82,0.2)');
   gradL.addColorStop(1, 'rgba(255,82,82,0)');
+
+  const gradV2 = ctx.createLinearGradient(0, 0, 0, 200);
+  gradV2.addColorStop(0, 'rgba(0,229,160,0.12)');
+  gradV2.addColorStop(1, 'rgba(0,229,160,0)');
 
   chart2 = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: 'Cumulative V1 loss', data: cumLoss, borderColor: '#ff5252', backgroundColor: gradL, fill: true, borderWidth: 2, pointRadius: 0, tension: 0.1 },
-        { label: 'V2 recovery',        data: cumLoss, borderColor: '#00e5a0', borderDash: [5,4], fill: false, borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
+        { label: 'Cumulative stale cost (V1)', data: cumV1, borderColor: '#ff5252', backgroundColor: gradL, fill: true, borderWidth: 2, pointRadius: 0, tension: 0.1 },
+        { label: 'Cumulative stale cost (V2)', data: cumV2, borderColor: '#00e5a0', backgroundColor: gradV2, fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
       ]
     },
     options: {
@@ -429,9 +436,9 @@ function buildChart2() {
     }
   });
 
-  document.getElementById('c2-30d').textContent   = fmtUSD(saving * 30);
-  document.getElementById('c2-1y').textContent    = fmtUSD(saving * 365);
-  document.getElementById('c2-daily').textContent = fmtUSD(saving);
+  document.getElementById('c2-30d').textContent   = fmtUSD((dailyV1 - dailyV2) * 30);
+  document.getElementById('c2-1y').textContent    = fmtUSD((dailyV1 - dailyV2) * 365);
+  document.getElementById('c2-daily').textContent = fmtUSD(dailyV1 - dailyV2);
   document.getElementById('c2val').textContent    = c2HP + ' PH/s';
   document.getElementById('c2-badge').textContent = '@ ' + c2HP + ' PH/s';
 }
