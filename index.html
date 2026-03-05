@@ -716,7 +716,7 @@ let currentHashratePH = 100;
 
 function calcLoss(hashratePH) {
   // Daily revenue difference V1 vs V2 per TH/s, scaled to hashrate
-  const hashrateTH = hashratePH * 1e6; // PH → TH
+  const hashrateTH = hashratePH * 1000; // 1 PH = 1,000 TH // PH → TH
   const dailyLossPerTH = HP_USD * (V1_REJECT - V2_REJECT); // USD lost per TH/day on V1
   const dailyLoss = dailyLossPerTH * hashrateTH;
   return dailyLoss;
