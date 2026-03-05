@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CycleScope — SHA-256 Efficiency × Stratum V2</title>
+<title>Stratum V2 — Does it save you money?</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -13,666 +13,341 @@
   --panel: #111820;
   --border: #1c2535;
   --border2: #243040;
-  --hp: #ffe566;        /* hashprice gold */
-  --v1: #ff5252;        /* v1 red/wasted */
-  --v2: #00e5a0;        /* v2 green/effective */
-  --neutral: #4a90d9;   /* cycles blue */
+  --hp: #ffe566;
+  --v1: #ff5252;
+  --v2: #00e5a0;
   --text: #cdd9e8;
   --muted: #4a6080;
-  --muted2: #2a3a50;
   --font: 'IBM Plex Mono', monospace;
   --display: 'Bebas Neue', sans-serif;
 }
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* Scanline texture */
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; overflow-x: hidden; }
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.08) 2px,
-    rgba(0,0,0,0.08) 4px
-  );
-  pointer-events: none;
-  z-index: 0;
+  content: ''; position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+  pointer-events: none; z-index: 0;
 }
+.wrap { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 0 20px 48px; }
 
-.wrap { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 0 20px 40px; }
-
-/* ── HEADER ── */
+/* HEADER */
 .header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding: 20px 0 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 24px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+  flex-wrap: wrap; gap: 12px;
 }
-
-.logo-block {}
-.logo-eyebrow {
-  font-size: 9px;
-  letter-spacing: 4px;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-.logo-title {
-  font-family: var(--display);
-  font-size: 42px;
-  letter-spacing: 3px;
-  line-height: 1;
-  color: var(--text);
-}
+.logo-eyebrow { font-size: 9px; letter-spacing: 4px; color: var(--muted); margin-bottom: 4px; }
+.logo-title { font-family: var(--display); font-size: 44px; letter-spacing: 3px; line-height: 1; color: var(--text); }
 .logo-title span { color: var(--v2); }
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.live-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2);
+  padding: 6px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; color: var(--v2); letter-spacing: 1.5px;
 }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--v2); animation: blink 1.5s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
-/* ── PROTOCOL TOGGLE ── */
-.toggle-group {
-  display: flex;
-  background: var(--panel);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.toggle-btn {
-  padding: 8px 18px;
-  font-family: var(--font);
-  font-size: 11px;
-  font-weight: 600;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s;
-  letter-spacing: 1px;
-}
-.toggle-btn.v1 { color: var(--muted); }
-.toggle-btn.v2 { color: var(--muted); }
-.toggle-btn.v1.active { background: rgba(255,82,82,0.15); color: var(--v1); }
-.toggle-btn.v2.active { background: rgba(0,229,160,0.12); color: var(--v2); }
-.toggle-btn.both.active { background: rgba(255,229,102,0.1); color: var(--hp); }
-
-.miner-select {
-  background: var(--panel);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  padding: 8px 12px;
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 11px;
-  cursor: pointer;
-  outline: none;
-}
-
-/* ── STAT BAR ── */
+/* STAT BAR */
 .stat-bar {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 20px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px;
 }
-.stat-cell {
-  background: var(--panel);
-  padding: 12px 16px;
-  transition: background 0.2s;
-}
+.stat-cell { background: var(--panel); padding: 14px 18px; transition: background 0.2s; }
 .stat-cell:hover { background: var(--surface); }
-.stat-cell-label {
-  font-size: 8px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.stat-cell-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1;
-}
-.stat-cell-value.gold { color: var(--hp); }
-.stat-cell-value.green { color: var(--v2); }
-.stat-cell-value.red { color: var(--v1); }
-.stat-cell-value.blue { color: var(--neutral); }
-.stat-cell-sub { font-size: 9px; color: var(--muted); margin-top: 3px; }
+.stat-label { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 7px; }
+.stat-value { font-size: 20px; font-weight: 700; line-height: 1; }
+.gold { color: var(--hp); } .green { color: var(--v2); } .red { color: var(--v1); }
+.stat-sub { font-size: 9px; color: var(--muted); margin-top: 4px; }
 
-/* ── CHART GRID ── */
-.chart-grid-top {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.chart-grid-bot {
-  display: grid;
-  grid-template-columns: 2fr 3fr;
-  gap: 16px;
-}
-
+/* CARDS */
 .card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
-  position: relative;
-  overflow: hidden;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 22px; position: relative; overflow: hidden; margin-bottom: 20px;
+}
+.card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; }
+.card.cgold::after { background: linear-gradient(90deg, transparent, var(--hp) 40%, transparent); }
+.card.cgreen::after { background: linear-gradient(90deg, transparent, var(--v2) 40%, transparent); }
+.card.cred::after   { background: linear-gradient(90deg, transparent, var(--v1) 40%, transparent); }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 8px; }
+.card-title { font-size: 9px; letter-spacing: 2.5px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.card-subtitle { font-size: 14px; font-weight: 600; color: var(--text); }
+.badge { font-size: 9px; letter-spacing: 1px; padding: 4px 10px; border-radius: 4px; font-weight: 700; white-space: nowrap; border: none; cursor: default; }
+.badge.bgold  { background: rgba(255,229,102,0.1); color: var(--hp);  border: 1px solid rgba(255,229,102,0.2); }
+.badge.bgreen { background: rgba(0,229,160,0.1);   color: var(--v2); border: 1px solid rgba(0,229,160,0.2); }
+.badge.bred   { background: rgba(255,82,82,0.1);   color: var(--v1); border: 1px solid rgba(255,82,82,0.2); }
+
+/* CONTROLS */
+.controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.ctrl-label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; white-space: nowrap; }
+.ctrl-val { font-size: 12px; font-weight: 700; color: var(--v2); min-width: 80px; }
+input[type=range] { accent-color: var(--v2); cursor: pointer; flex: 1; min-width: 100px; }
+select.ctrl-select {
+  background: var(--surface); border: 1px solid var(--border2); border-radius: 6px;
+  padding: 6px 10px; color: var(--text); font-family: var(--font); font-size: 11px; cursor: pointer; outline: none;
 }
 
-.card::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-}
-.card.gold-top::after { background: linear-gradient(90deg, transparent, var(--hp) 40%, transparent); }
-.card.green-top::after { background: linear-gradient(90deg, transparent, var(--v2) 40%, transparent); }
-.card.blue-top::after { background: linear-gradient(90deg, transparent, var(--neutral) 40%, transparent); }
-.card.red-top::after { background: linear-gradient(90deg, transparent, var(--v1) 40%, transparent); }
+/* SUMMARY */
+.summary-row { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 14px; }
+.sum-label { font-size: 8px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+.sum-value { font-size: 22px; font-weight: 700; line-height: 1; }
 
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
+/* LEGEND */
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 9px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+.leg-line { width: 20px; height: 2px; border-radius: 1px; flex-shrink: 0; }
 
-.card-title {
-  font-size: 10px;
-  letter-spacing: 2.5px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.card-subtitle { font-size: 13px; font-weight: 600; color: var(--text); }
+/* BREAK-EVEN GRID */
+.be-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 4px; }
+.be-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color 0.2s; }
+.be-card:hover { border-color: var(--border2); }
+.be-miner { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.be-row { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 5px; }
+.be-key { color: var(--muted); }
+.be-val { font-weight: 600; }
+.be-bar-bg { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.be-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.be-status { font-size: 9px; font-weight: 700; letter-spacing: 1px; margin-top: 7px; }
 
-.card-badge {
-  font-size: 9px;
-  letter-spacing: 1px;
-  padding: 3px 8px;
-  border-radius: 3px;
-  font-weight: 600;
+/* SPAN BUTTONS */
+.span-btns { display: flex; gap: 4px; }
+.span-btn {
+  padding: 4px 10px; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  cursor: pointer; font-family: var(--font); border: 1px solid rgba(255,229,102,0.2);
+  background: rgba(255,229,102,0.1); color: var(--hp); transition: opacity 0.2s;
 }
-.badge-gold { background: rgba(255,229,102,0.12); color: var(--hp); border: 1px solid rgba(255,229,102,0.2); }
-.badge-green { background: rgba(0,229,160,0.1); color: var(--v2); border: 1px solid rgba(0,229,160,0.2); }
-.badge-red { background: rgba(255,82,82,0.1); color: var(--v1); border: 1px solid rgba(255,82,82,0.2); }
+.span-btn.dim { opacity: 0.4; }
 
-/* ── LEGEND ── */
-.legend {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.legend-line {
-  width: 20px;
-  height: 2px;
-  flex-shrink: 0;
-}
-
-/* ── SCATTER PLOT custom ── */
-#scatterCanvas { cursor: crosshair; }
-
-/* ── EFFICIENCY METER ── */
-.eff-meters { margin-top: 8px; }
-.eff-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.eff-label { font-size: 10px; color: var(--muted); width: 70px; flex-shrink: 0; }
-.eff-bar-bg {
-  flex: 1;
-  height: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-  position: relative;
-}
-.eff-bar-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-.eff-bar-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 0px,
-    rgba(255,255,255,0.04) 6px,
-    transparent 6px,
-    transparent 12px
-  );
-}
-.eff-val { font-size: 11px; font-weight: 700; width: 42px; text-align: right; }
-
-/* ── HALVING STRIP ── */
-.halving-annotations { margin-top: 14px; display: flex; gap: 16px; }
-.halving-tag {
-  font-size: 9px;
-  letter-spacing: 1px;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 4px 10px;
-  border-radius: 3px;
-}
-.halving-tag.highlight { border-color: var(--v2); color: var(--v2); background: rgba(0,229,160,0.06); }
-
-/* ── TOOLTIP ── */
-.chart-tooltip {
-  position: fixed;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 10px;
-  line-height: 1.7;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 50;
-  max-width: 200px;
-}
-.chart-tooltip.visible { opacity: 1; }
-.tt-title { color: var(--hp); font-weight: 700; margin-bottom: 4px; font-size: 11px; }
-.tt-row { display: flex; justify-content: space-between; gap: 16px; }
-.tt-label { color: var(--muted); }
-.tt-val { color: var(--text); font-weight: 600; }
-
-canvas { display: block; }
-
-@media (max-width: 1100px) {
-  .chart-grid-top, .chart-grid-bot { grid-template-columns: 1fr; }
-  .stat-bar { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 600px) {
-  .stat-bar { grid-template-columns: repeat(2, 1fr); }
-  .logo-title { font-size: 30px; }
-}
+@media (max-width: 900px) { .stat-bar { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px) { .stat-bar { grid-template-columns: repeat(2, 1fr); } .logo-title { font-size: 32px; } }
 </style>
 </head>
 <body>
-<div id="tooltip" class="chart-tooltip"></div>
-
 <div class="wrap">
 
   <!-- HEADER -->
   <div class="header">
-    <div class="logo-block">
-      <div class="logo-eyebrow">SHA-256 Cycle Efficiency Analytics</div>
-      <div class="logo-title">CYCLE<span>SCOPE</span></div>
+    <div>
+      <div class="logo-eyebrow">Bitcoin Mining Analytics · Stratum V2 vs V1</div>
+      <div class="logo-title">STRATUM<span>V2</span>.COM</div>
     </div>
     <div class="header-right">
-      <select class="miner-select" id="minerModel" onchange="recalc()">
-        <option value="s21xp">Antminer S21 XP · 13.5 W/T</option>
-        <option value="s21pro">Antminer S21 Pro · 15.0 W/T</option>
-        <option value="s21">Antminer S21 · 17.5 W/T</option>
-        <option value="s19xp">Antminer S19 XP · 21.5 W/T</option>
+      <div class="live-pill"><div class="live-dot"></div><span id="liveStatus">LOADING</span></div>
+      <select class="ctrl-select" id="powerCostSelect" onchange="rebuildAll()">
+        <option value="0.03">$0.03 / kWh</option>
+        <option value="0.04">$0.04 / kWh</option>
+        <option value="0.05" selected>$0.05 / kWh</option>
+        <option value="0.06">$0.06 / kWh</option>
+        <option value="0.07">$0.07 / kWh</option>
+        <option value="0.08">$0.08 / kWh</option>
+        <option value="0.10">$0.10 / kWh</option>
       </select>
-      <div class="toggle-group">
-        <button class="toggle-btn v1" onclick="setMode('v1',this)">STRATUM V1</button>
-        <button class="toggle-btn both active" onclick="setMode('both',this)">COMPARE</button>
-        <button class="toggle-btn v2" onclick="setMode('v2',this)">STRATUM V2</button>
-      </div>
     </div>
   </div>
 
   <!-- STAT BAR -->
   <div class="stat-bar">
     <div class="stat-cell">
-      <div class="stat-cell-label">Hashprice USD/TH/d</div>
-      <div class="stat-cell-value gold" id="s-hp">$0.0621</div>
-      <div class="stat-cell-sub">demo · live via API key</div>
+      <div class="stat-label">Hashprice Live</div>
+      <div class="stat-value gold" id="s-hp">—</div>
+      <div class="stat-sub">USD / TH / day</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-cell-label">Effective Cycles/s (V2)</div>
-      <div class="stat-cell-value green" id="s-effcyc">149.85 TH/s</div>
-      <div class="stat-cell-sub">@ 0.015% reject</div>
+      <div class="stat-label">BTC Price</div>
+      <div class="stat-value" id="s-btc">—</div>
+      <div class="stat-sub">via CoinGecko</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-cell-label">Wasted Cycles (V1)</div>
-      <div class="stat-cell-value red" id="s-waste">0.72 TH/s</div>
-      <div class="stat-cell-sub">stale + reject overhead</div>
+      <div class="stat-label">V1 Reject Rate</div>
+      <div class="stat-value red">0.47%</div>
+      <div class="stat-sub">stale + reject baseline</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-cell-label">V2 Efficiency Gain</div>
-      <div class="stat-cell-value green" id="s-gain">+0.47%</div>
-      <div class="stat-cell-sub">vs Stratum V1 baseline</div>
+      <div class="stat-label">V2 Reject Rate</div>
+      <div class="stat-value green">0.015%</div>
+      <div class="stat-sub">Luxor measured data</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-cell-label">USD / 10¹⁵ Cycles</div>
-      <div class="stat-cell-value gold" id="s-cprice">$0.000718</div>
-      <div class="stat-cell-sub">cycle-normalised price</div>
-    </div>
-    <div class="stat-cell">
-      <div class="stat-cell-label">Sats / 10¹² Cycles</div>
-      <div class="stat-cell-value blue" id="s-sats">161 sats</div>
-      <div class="stat-cell-sub">halving-aware metric</div>
+      <div class="stat-label">Efficiency Gain</div>
+      <div class="stat-value green">+0.455%</div>
+      <div class="stat-sub">more cycles earning revenue</div>
     </div>
   </div>
 
-  <!-- ROW 1: Timeline + Efficiency Bars -->
-  <div class="chart-grid-top">
-
-    <div class="card gold-top">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Chart 1 · Dual-Axis Timeline</div>
-          <div class="card-subtitle">Hashprice vs Effective SHA-256 Cycles/s</div>
-        </div>
-        <div class="card-badge badge-gold">30D</div>
-      </div>
-      <canvas id="timelineChart" height="200"></canvas>
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:var(--hp)"></div>Hashprice USD/TH/d</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--v2)"></div>Eff. Cycles (V2)</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--v1);opacity:0.6"></div>Eff. Cycles (V1)</div>
-      </div>
-    </div>
-
-    <div class="card green-top">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Cycle Efficiency by Protocol</div>
-          <div class="card-subtitle">Effective vs Wasted Cycles per Miner</div>
-        </div>
-        <div class="card-badge badge-green">V1 vs V2</div>
-      </div>
-      <div class="eff-meters" id="effMeters"></div>
-    </div>
-
-  </div>
-
-  <!-- ROW 2: Revenue Loss (full width) -->
-  <div class="card green-top" style="margin-bottom:16px">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Chart 2 · Cumulative Revenue Loss</div>
-          <div class="card-subtitle">USD left on table by staying on V1 · compounding daily</div>
-        </div>
-        <div class="card-badge badge-green" id="lossHashrateLabel">@ 100 PH/s</div>
-      </div>
-      <canvas id="stackedChart" height="130"></canvas>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
-        <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase">Hashrate (PH/s)</div>
-        <input type="range" id="hashrateSlider" min="1" max="1000" value="100" step="1"
-          style="flex:1;min-width:80px;accent-color:var(--v2);cursor:pointer" oninput="updateLossChart(this.value)">
-        <div style="font-size:12px;font-weight:700;color:var(--v2);font-family:var(--font);width:60px" id="hashrateVal">100 PH/s</div>
-      </div>
-      <div style="display:flex;gap:32px;margin-top:10px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">30-Day Loss (V1)</div>
-          <div style="font-size:18px;font-weight:700;color:var(--v1);font-family:var(--font)" id="loss30d">—</div>
-        </div>
-        <div>
-          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">1-Year Loss (V1)</div>
-          <div style="font-size:18px;font-weight:700;color:var(--v1);font-family:var(--font)" id="loss1y">—</div>
-        </div>
-        <div>
-          <div style="font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">V2 Recovery/Day</div>
-          <div style="font-size:18px;font-weight:700;color:var(--v2);font-family:var(--font)" id="lossPerDay">—</div>
-        </div>
-      </div>
-      <div class="legend" style="margin-top:10px">
-        <div class="legend-item"><div class="legend-line" style="background:var(--v1)"></div>Cumulative loss staying on V1</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--v2)"></div>Revenue recovered by V2</div>
-      </div>
-  </div>
-
-    <!-- ROW 3: Halving Strip full width -->
-  <div class="card gold-top" style="margin-top:16px">
+  <!-- CHART 1 -->
+  <div class="card cgold">
     <div class="card-header">
       <div>
-        <div class="card-title">Chart 4 · Halving-Aware Cycles-per-Sat Strip</div>
-        <div class="card-subtitle">Sats earned per 10¹² SHA-256 cycles · Pre vs Post V2 adoption bands</div>
+        <div class="card-title">Chart 1 · Live Hashprice vs Your V1 Stale Cost</div>
+        <div class="card-subtitle">What the market pays — and what stales are costing you daily at your scale</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <div class="card-badge badge-gold">SPAN: 18M</div>
-        <div class="card-badge badge-green">V2 BAND</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="badge bgold" id="c1-badge">@ 100 PH/s</div>
+        <div class="span-btns">
+          <button class="span-btn" onclick="setSpan('7d',this)">7D</button>
+          <button class="span-btn dim" onclick="setSpan('30d',this)">30D</button>
+          <button class="span-btn dim" onclick="setSpan('90d',this)">90D</button>
+        </div>
       </div>
     </div>
-    <canvas id="halvingChart" height="130"></canvas>
-    <div class="halving-annotations">
-      <div class="halving-tag">HALVING APR 2024 ▼ 3.125 BTC/block</div>
-      <div class="halving-tag highlight">V2 ADOPTION INFLECTION →</div>
-      <div class="halving-tag">POST-HALVING RECOVERY BAND</div>
-      <div class="halving-tag">CYCLE: next halving ~Apr 2028</div>
+    <div class="controls">
+      <div class="ctrl-label">Your Hashrate</div>
+      <input type="range" id="c1slider" min="1" max="1000" value="100" step="1" oninput="onC1Slider(this.value)">
+      <div class="ctrl-val" id="c1val">100 PH/s</div>
+    </div>
+    <canvas id="chart1" height="200"></canvas>
+    <div class="summary-row">
+      <div><div class="sum-label">Daily V1 Stale Cost</div><div class="sum-value red" id="c1-daily">—</div></div>
+      <div><div class="sum-label">Monthly V1 Stale Cost</div><div class="sum-value red" id="c1-monthly">—</div></div>
+      <div><div class="sum-label">V2 Saves / Day</div><div class="sum-value green" id="c1-recovery">—</div></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--hp)"></div>Hashprice USD/TH/day</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--v1)"></div>Your daily V1 stale cost</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--v2);opacity:0.6"></div>Your daily V2 stale cost</div>
     </div>
   </div>
 
-</div><!-- /wrap -->
+  <!-- CHART 2 -->
+  <div class="card cred">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Chart 2 · Cumulative Revenue Left on the Table</div>
+        <div class="card-subtitle">Total USD lost by staying on V1 — compounding every day</div>
+      </div>
+      <div class="badge bred" id="c2-badge">@ 100 PH/s</div>
+    </div>
+    <div class="controls">
+      <div class="ctrl-label">Your Hashrate</div>
+      <input type="range" id="c2slider" min="1" max="1000" value="100" step="1" oninput="onC2Slider(this.value)">
+      <div class="ctrl-val" id="c2val">100 PH/s</div>
+    </div>
+    <canvas id="chart2" height="180"></canvas>
+    <div class="summary-row">
+      <div><div class="sum-label">30-Day Loss on V1</div><div class="sum-value red" id="c2-30d">—</div></div>
+      <div><div class="sum-label">1-Year Loss on V1</div><div class="sum-value red" id="c2-1y">—</div></div>
+      <div><div class="sum-label">V2 Saves / Day</div><div class="sum-value green" id="c2-daily">—</div></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-line" style="background:var(--v1)"></div>Cumulative loss on V1</div>
+      <div class="legend-item"><div class="leg-line" style="background:var(--v2)"></div>Revenue recovered with V2</div>
+    </div>
+  </div>
+
+  <!-- CHART 3 -->
+  <div class="card cgreen">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Chart 3 · Miner Model Break-Even at Current Hashprice</div>
+        <div class="card-subtitle">Which machines are profitable — and does switching to V2 change the outcome?</div>
+      </div>
+      <div class="badge bgreen" id="c3-badge">$0.05 / kWh</div>
+    </div>
+    <div id="beGrid" class="be-grid"></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:14px;">
+      Adjust power cost via selector top-right · Hashprice updates live every 90s
+    </div>
+  </div>
+
+</div>
 
 <script>
-// ════════════════════════════════════════════
-// CONSTANTS & MINER MODELS
-// ════════════════════════════════════════════
-const MINERS = {
-  s21xp:  { label: 'S21 XP',    wth: 13.5, hashrateTH: 270 },
-  s21pro: { label: 'S21 Pro',   wth: 15.0, hashrateTH: 234 },
-  s21:    { label: 'S21',       wth: 17.5, hashrateTH: 200 },
-  s19xp:  { label: 'S19 XP',   wth: 21.5, hashrateTH: 141 },
-};
-
-// SHA-256² = 2 SHA256 rounds, ~64 rounds each, ~256-bit compression steps
-// Rough cycles-per-hash for ASIC: ~512 cycles per double-SHA256 (varies by impl)
-const CYCLES_PER_HASH = 512;
-
-const V1_REJECT = 0.0047; // 0.47% stale/reject baseline
-const V2_REJECT = 0.000151; // 0.0151% as per Luxor data
-
-let mode = 'both';
-let minerKey = 's21xp';
-let HP_USD = 0.0621;     // updated by live fetch
-let BTC_PRICE = 87420;   // updated by live fetch
-
-// ════════════════════════════════════════════
-// FREE API FETCH — same formula as main dashboard
-// ════════════════════════════════════════════
+// ══ CONSTANTS ══════════════════════════════════════════
+const V1_REJECT    = 0.0047;
+const V2_REJECT    = 0.000151;
 const BLOCK_SUBSIDY = 3.125;
 
-async function fetchLiveHashprice() {
-  // Single call to our CORS proxy — /api/hashprice fetches all three
-  // upstream sources server-side (CoinGecko + blockchain.info + mempool.space)
-  const res = await fetch('/api/hashprice', { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`/api/hashprice returned ${res.status}`);
-  const data = await res.json();
+const MINERS = [
+  { name: 'Antminer S21 XP',   wth: 13.5, hashTH: 270 },
+  { name: 'Antminer S21 Pro',  wth: 15.0, hashTH: 234 },
+  { name: 'Antminer S21',      wth: 17.5, hashTH: 200 },
+  { name: 'Antminer S19 XP',   wth: 21.5, hashTH: 141 },
+  { name: 'Antminer S19j Pro', wth: 29.5, hashTH: 104 },
+  { name: 'Whatsminer M60S',   wth: 18.5, hashTH: 186 },
+];
 
-  HP_USD    = data.priceUSD;
-  BTC_PRICE = data.btcPrice;
+// ══ STATE ══════════════════════════════════════════════
+let HP_USD        = 0.0316;
+let BTC_PRICE     = 72000;
+let c1HP          = 100;  // PH/s
+let c2HP          = 100;  // PH/s
+let currentSpan   = '7d';
+let chart1, chart2;
+let histories     = {};
 
-  // Update stat bar
-  document.getElementById('s-hp').textContent = '$' + data.priceUSD.toFixed(5);
-
-  // Update status indicator
-  const badge = document.querySelector('.logo-eyebrow');
-  if (badge) badge.textContent = `SHA-256 Cycle Efficiency Analytics · Live · ${new Date().toLocaleTimeString()}`;
-
-  console.info('[CycleScope] Live data via /api/hashprice:', data);
-  return data.priceUSD;
+// ══ HELPERS ════════════════════════════════════════════
+function fmtUSD(v) {
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(3) + 'M';
+  if (v >= 1e3) return '$' + (v/1e3).toFixed(2) + 'k';
+  return '$' + v.toFixed(2);
 }
 
-// ════════════════════════════════════════════
-// DEMO DATA GENERATOR
-// ════════════════════════════════════════════
-function genHP(days) {
+// Daily USD lost due to stale gap (V1 vs V2), for given PH/s and hashprice
+function staleCost(hashratePH, hp, rejectRate) {
+  return hp * rejectRate * hashratePH * 1000; // PH→TH: ×1000
+}
+function dailySaving(hashratePH, hp) {
+  return staleCost(hashratePH, hp, V1_REJECT) - staleCost(hashratePH, hp, V2_REJECT);
+}
+
+function genHistory(days, anchor) {
   const pts = [];
-  let v = 0.055;
+  let v = anchor * (0.88 + Math.random() * 0.1);
   for (let i = days; i >= 0; i--) {
-    v += (Math.random() - 0.48) * 0.003;
-    v = Math.max(0.03, Math.min(0.12, v));
-    pts.push(parseFloat(v.toFixed(6)));
+    if (i === 0) v = anchor;
+    else { v += (Math.random() - 0.48) * 0.002; v = Math.max(0.015, Math.min(0.15, v)); }
+    pts.push(+v.toFixed(6));
   }
   return pts;
 }
 
-const HP30 = genHP(30);
-const HP90 = genHP(90);
-const HP18M = genHP(548); // ~18 months
-
-// ════════════════════════════════════════════
-// CALCULATIONS
-// ════════════════════════════════════════════
-function calcMetrics(hp, miner) {
-  const m = MINERS[miner];
-  const hashrate = m.hashrateTH * 1e12; // hashes/s
-  const cyclesPerSec = hashrate * CYCLES_PER_HASH;
-  const effV1 = cyclesPerSec * (1 - V1_REJECT);
-  const effV2 = cyclesPerSec * (1 - V2_REJECT);
-  const wasted = cyclesPerSec * (V1_REJECT - V2_REJECT);
-  const gain = (V1_REJECT - V2_REJECT) / V1_REJECT;
-  const usdPer1e15 = hp / (m.hashrateTH * 1e3) / 24 / 3600 * 1e15;
-  const satsPer1e12 = (hp / BTC_PRICE) * 1e8 / (m.hashrateTH * 1e3) / 24 / 3600 * 1e12;
-  return { cyclesPerSec, effV1, effV2, wasted, gain, usdPer1e15, satsPer1e12 };
-}
-
-function fmtTH(v) {
-  const th = v / 1e12 / CYCLES_PER_HASH;
-  return th.toFixed(2) + ' TH/s equiv';
-}
-
-function recalc() {
-  minerKey = document.getElementById('minerModel').value;
-  const m = calcMetrics(HP_USD, minerKey);
-  document.getElementById('s-hp').textContent = '$' + HP_USD.toFixed(5);
-  document.getElementById('s-effcyc').textContent = fmtTH(m.effV2);
-  document.getElementById('s-waste').textContent = fmtTH(m.wasted);
-  document.getElementById('s-gain').textContent = '+' + (m.gain * 100).toFixed(3) + '%';
-  document.getElementById('s-cprice').textContent = '$' + m.usdPer1e15.toFixed(6);
-  document.getElementById('s-sats').textContent = Math.round(m.satsPer1e12) + ' sats';
-  buildEffMeters();
-  // updateCharts called explicitly after recalc where needed
-}
-
-// ════════════════════════════════════════════
-// CHART THEME
-// ════════════════════════════════════════════
-const CT = {
-  color: (a) => `rgba(${a})`,
-  tooltip: {
-    backgroundColor: '#0d1117',
-    borderColor: '#1c2535',
-    borderWidth: 1,
-    titleColor: '#ffe566',
-    bodyColor: '#cdd9e8',
-    titleFont: { family: 'IBM Plex Mono', size: 10, weight: '700' },
-    bodyFont: { family: 'IBM Plex Mono', size: 10 },
-    padding: 10,
-    callbacks: {}
-  },
-  xGrid: { color: 'rgba(28,37,53,0.8)', drawBorder: false },
-  yGrid: { color: 'rgba(28,37,53,0.8)', drawBorder: false },
-  xTicks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 }, maxTicksLimit: 8 },
-  yTicks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 9 } },
-};
-
-// ════════════════════════════════════════════
-// CHART 1: DUAL-AXIS TIMELINE
-// ════════════════════════════════════════════
-let timelineChart;
-function buildTimeline() {
-  if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
-  const ctx = document.getElementById('timelineChart').getContext('2d');
-  const labels = HP30.map((_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (30 - i));
+function makeLabels(days) {
+  return Array.from({length: days + 1}, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (days - i));
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   });
+}
 
-  const m = calcMetrics(HP_USD, minerKey);
-  const ratioV2 = (1 - V2_REJECT);
-  const ratioV1 = (1 - V1_REJECT);
+function seedHistories() {
+  histories['7d']  = genHistory(7,  HP_USD);
+  histories['30d'] = genHistory(30, HP_USD);
+  histories['90d'] = genHistory(90, HP_USD);
+}
 
-  const effV2arr = HP30.map(hp => {
-    const r = calcMetrics(hp, minerKey);
-    return +(r.effV2 / 1e12 / CYCLES_PER_HASH).toFixed(4);
-  });
-  const effV1arr = HP30.map(hp => {
-    const r = calcMetrics(hp, minerKey);
-    return +(r.effV1 / 1e12 / CYCLES_PER_HASH).toFixed(4);
-  });
+// ══ CHART THEME ════════════════════════════════════════
+const TT = {
+  backgroundColor: '#0d1117', borderColor: '#243040', borderWidth: 1,
+  titleColor: '#ffe566', bodyColor: '#cdd9e8',
+  titleFont: { family: 'IBM Plex Mono', size: 10, weight: '700' },
+  bodyFont:  { family: 'IBM Plex Mono', size: 10 }, padding: 10,
+};
+const xG = { color: 'rgba(28,37,53,0.8)' };
+const yG = { color: 'rgba(28,37,53,0.8)' };
+const xT = { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 }, maxTicksLimit: 8 };
+const yT = { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 9 } };
+
+// ══ CHART 1 ════════════════════════════════════════════
+function buildChart1() {
+  if (chart1) { chart1.destroy(); chart1 = null; }
+  const ctx  = document.getElementById('chart1').getContext('2d');
+  const days = currentSpan === '7d' ? 7 : currentSpan === '30d' ? 30 : 90;
+  const hp   = histories[currentSpan] || genHistory(days, HP_USD);
+
+  const v1Cost = hp.map(h => staleCost(c1HP, h, V1_REJECT));
+  const v2Cost = hp.map(h => staleCost(c1HP, h, V2_REJECT));
 
   const gradHP = ctx.createLinearGradient(0, 0, 0, 220);
-  gradHP.addColorStop(0, 'rgba(255,229,102,0.25)');
+  gradHP.addColorStop(0, 'rgba(255,229,102,0.18)');
   gradHP.addColorStop(1, 'rgba(255,229,102,0)');
 
-  timelineChart = new Chart(ctx, {
+  chart1 = new Chart(ctx, {
     type: 'line',
     data: {
-      labels,
+      labels: makeLabels(days),
       datasets: [
-        {
-          label: 'Hashprice USD/TH/d',
-          data: HP30,
-          borderColor: '#ffe566',
-          backgroundColor: gradHP,
-          fill: true,
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.4,
-          yAxisID: 'y',
-        },
-        {
-          label: 'Eff. Cycles TH/s (V2)',
-          data: mode !== 'v1' ? effV2arr : null,
-          borderColor: '#00e5a0',
-          fill: false,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0.4,
-          yAxisID: 'y2',
-        },
-        {
-          label: 'Eff. Cycles TH/s (V1)',
-          data: mode !== 'v2' ? effV1arr : null,
-          borderColor: 'rgba(255,82,82,0.5)',
-          borderDash: [4, 3],
-          fill: false,
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0.4,
-          yAxisID: 'y2',
-        },
+        { label: 'Hashprice', data: hp, borderColor: '#ffe566', backgroundColor: gradHP, fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4, yAxisID: 'yHP' },
+        { label: 'V1 daily stale cost', data: v1Cost, borderColor: '#ff5252', fill: false, borderWidth: 2, pointRadius: 0, tension: 0.4, yAxisID: 'yCost' },
+        { label: 'V2 daily stale cost', data: v2Cost, borderColor: 'rgba(0,229,160,0.55)', borderDash: [5,3], fill: false, borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'yCost' },
       ]
     },
     options: {
@@ -680,101 +355,61 @@ function buildTimeline() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          ...CT.tooltip,
-          callbacks: {
-            label: (ctx) => {
-              const v = ctx.parsed.y;
-              if (ctx.datasetIndex === 0) return ` HP: $${v.toFixed(5)}`;
-              return ` ${ctx.dataset.label.includes('V2') ? 'V2' : 'V1'}: ${v.toFixed(2)} TH/s`;
-            }
-          }
-        }
+        tooltip: { ...TT, callbacks: {
+          label: c => c.datasetIndex === 0
+            ? ` Hashprice: $${c.parsed.y.toFixed(6)}/TH/d`
+            : ` ${c.dataset.label}: ${fmtUSD(c.parsed.y)}`
+        }}
       },
       scales: {
-        x: { grid: CT.xGrid, ticks: CT.xTicks },
-        y: {
-          grid: CT.yGrid,
-          ticks: { ...CT.yTicks, callback: v => '$' + v.toFixed(4) },
-          position: 'left',
-        },
-        y2: {
-          grid: { display: false },
-          ticks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 }, callback: v => v.toFixed(1) + 'T' },
-          position: 'right',
-        }
+        x: { grid: xG, ticks: xT },
+        yHP:   { position: 'left',  grid: yG, ticks: { ...yT, callback: v => '$'+v.toFixed(4) } },
+        yCost: { position: 'right', grid: { display: false }, ticks: { ...yT, callback: v => fmtUSD(v) } }
       }
     }
   });
+
+  const daily = dailySaving(c1HP, HP_USD);
+  document.getElementById('c1-daily').textContent    = fmtUSD(staleCost(c1HP, HP_USD, V1_REJECT));
+  document.getElementById('c1-monthly').textContent  = fmtUSD(staleCost(c1HP, HP_USD, V1_REJECT) * 30);
+  document.getElementById('c1-recovery').textContent = fmtUSD(daily);
+  document.getElementById('c1val').textContent       = c1HP + ' PH/s';
+  document.getElementById('c1-badge').textContent    = '@ ' + c1HP + ' PH/s';
 }
 
-// ════════════════════════════════════════════
-// CHART 2: STACKED BAR (WASTED CYCLES)
-// ════════════════════════════════════════════
-let stackedChart;
-let currentHashratePH = 100;
+function onC1Slider(v) { c1HP = parseInt(v); buildChart1(); }
 
-function calcLoss(hashratePH) {
-  // Daily revenue difference V1 vs V2 per TH/s, scaled to hashrate
-  const hashrateTH = hashratePH * 1000; // 1 PH = 1,000 TH // PH → TH
-  const dailyLossPerTH = HP_USD * (V1_REJECT - V2_REJECT); // USD lost per TH/day on V1
-  const dailyLoss = dailyLossPerTH * hashrateTH;
-  return dailyLoss;
+function setSpan(span, btn) {
+  currentSpan = span;
+  document.querySelectorAll('.span-btn').forEach(b => b.classList.add('dim'));
+  btn.classList.remove('dim');
+  buildChart1();
 }
 
-function buildStacked() {
-  if (stackedChart) { stackedChart.destroy(); stackedChart = null; }
-  const ctx = document.getElementById('stackedChart').getContext('2d');
+// ══ CHART 2 ════════════════════════════════════════════
+function buildChart2() {
+  if (chart2) { chart2.destroy(); chart2 = null; }
+  const ctx    = document.getElementById('chart2').getContext('2d');
+  const days   = 90;
+  const saving = dailySaving(c2HP, HP_USD);
 
-  const days = 90;
-  const labels = Array.from({length: days}, (_, i) => {
+  const labels   = Array.from({length: days}, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (days - 1 - i));
-    return i % 15 === 0 ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    return i % 15 === 0 ? d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
   });
+  const cumLoss = Array.from({length: days}, (_, i) => +(saving * (i + 1)).toFixed(2));
 
-  const dailyLoss = calcLoss(currentHashratePH);
+  const gradL = ctx.createLinearGradient(0, 0, 0, 200);
+  gradL.addColorStop(0, 'rgba(255,82,82,0.2)');
+  gradL.addColorStop(1, 'rgba(255,82,82,0)');
 
-  // Cumulative loss line (V1 vs V2) — grows each day
-  const cumulativeLoss = Array.from({length: days}, (_, i) => +(dailyLoss * (i + 1)).toFixed(4));
-
-  // V2 recovery line — mirror of loss (what you get back)
-  const v2Recovery = cumulativeLoss.map(v => +v.toFixed(4));
-
-  // Gradient for area under loss curve
-  const gradLoss = ctx.createLinearGradient(0, 0, 0, 200);
-  gradLoss.addColorStop(0, 'rgba(255,82,82,0.25)');
-  gradLoss.addColorStop(1, 'rgba(255,82,82,0)');
-
-  const gradV2 = ctx.createLinearGradient(0, 0, 0, 200);
-  gradV2.addColorStop(0, 'rgba(0,229,160,0.15)');
-  gradV2.addColorStop(1, 'rgba(0,229,160,0)');
-
-  stackedChart = new Chart(ctx, {
+  chart2 = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        {
-          label: 'Cumulative V1 loss (USD)',
-          data: cumulativeLoss,
-          borderColor: '#ff5252',
-          backgroundColor: gradLoss,
-          fill: true,
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.1,
-        },
-        {
-          label: 'V2 recovery (USD)',
-          data: v2Recovery,
-          borderColor: '#00e5a0',
-          backgroundColor: gradV2,
-          fill: true,
-          borderWidth: 1.5,
-          borderDash: [4, 3],
-          pointRadius: 0,
-          tension: 0.1,
-        },
+        { label: 'Cumulative V1 loss', data: cumLoss, borderColor: '#ff5252', backgroundColor: gradL, fill: true, borderWidth: 2, pointRadius: 0, tension: 0.1 },
+        { label: 'V2 recovery',        data: cumLoss, borderColor: '#00e5a0', borderDash: [5,4], fill: false, borderWidth: 1.5, pointRadius: 0, tension: 0.1 },
       ]
     },
     options: {
@@ -782,230 +417,102 @@ function buildStacked() {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          ...CT.tooltip,
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: $${ctx.parsed.y.toFixed(2)}`,
-            title: (items) => `Day ${items[0].dataIndex + 1}`
-          }
-        }
+        tooltip: { ...TT, callbacks: {
+          label: c => ` ${c.dataset.label}: ${fmtUSD(c.parsed.y)}`,
+          title: items => `Day ${items[0].dataIndex + 1}`
+        }}
       },
       scales: {
-        x: { grid: CT.xGrid, ticks: { ...CT.xTicks, maxTicksLimit: 7 } },
-        y: {
-          grid: CT.yGrid,
-          ticks: { ...CT.yTicks, callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(2)) }
-        }
+        x: { grid: xG, ticks: { ...xT, maxTicksLimit: 7 } },
+        y: { grid: yG, ticks: { ...yT, callback: v => fmtUSD(v) } }
       }
     }
   });
 
-  // Update summary stats
-  const loss30 = dailyLoss * 30;
-  const loss365 = dailyLoss * 365;
-  document.getElementById('loss30d').textContent = '$' + (loss30 >= 1000 ? (loss30/1000).toFixed(2)+'k' : loss30.toFixed(2));
-  document.getElementById('loss1y').textContent  = '$' + (loss365 >= 1000 ? (loss365/1000).toFixed(1)+'k' : loss365.toFixed(2));
-  document.getElementById('lossPerDay').textContent = '$' + dailyLoss.toFixed(4);
-  document.getElementById('hashrateVal').textContent = currentHashratePH + ' PH/s';
-  document.getElementById('lossHashrateLabel').textContent = '@ ' + currentHashratePH + ' PH/s';
+  document.getElementById('c2-30d').textContent   = fmtUSD(saving * 30);
+  document.getElementById('c2-1y').textContent    = fmtUSD(saving * 365);
+  document.getElementById('c2-daily').textContent = fmtUSD(saving);
+  document.getElementById('c2val').textContent    = c2HP + ' PH/s';
+  document.getElementById('c2-badge').textContent = '@ ' + c2HP + ' PH/s';
 }
 
-function updateLossChart(val) {
-  currentHashratePH = parseInt(val);
-  buildStacked();
-}
+function onC2Slider(v) { c2HP = parseInt(v); buildChart2(); }
 
-// ════════════════════════════════════════════
-// CHART 3: SCATTER — CYCLE EFFICIENCY FRONTIER
-// ════════════════════════════════════════════
+// ══ CHART 3 ════════════════════════════════════════════
+function buildChart3() {
+  const powerCost = parseFloat(document.getElementById('powerCostSelect').value);
+  document.getElementById('c3-badge').textContent = '$' + powerCost.toFixed(2) + ' / kWh';
+  const grid = document.getElementById('beGrid');
+  grid.innerHTML = '';
 
-// ════════════════════════════════════════════
-// CHART 4: HALVING STRIP
-// ════════════════════════════════════════════
-let halvingChart;
-function buildHalving() {
-  if (halvingChart) { halvingChart.destroy(); halvingChart = null; }
-  const ctx = document.getElementById('halvingChart').getContext('2d');
-  const miner = MINERS[minerKey];
-  const n = HP18M.length;
-  const labels = HP18M.map((_, i) => {
-    const d = new Date('2023-10-01');
-    d.setDate(d.getDate() + i);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  });
+  MINERS.forEach(m => {
+    const rev          = HP_USD;
+    const powerPerTH   = m.wth / 1000 * 24 * powerCost;
+    const marginV1     = rev * (1 - V1_REJECT) - powerPerTH;
+    const marginV2     = rev * (1 - V2_REJECT) - powerPerTH;
+    const pct          = Math.max(0, Math.min(100, (marginV2 / rev) * 100));
+    const profitable   = marginV2 > 0;
+    const v2Lifts      = marginV1 <= 0 && marginV2 > 0;
+    const breakEvenPwr = (rev * (1 - V2_REJECT)) / (m.wth / 1000 * 24);
+    const barColor     = profitable ? 'var(--v2)' : 'var(--v1)';
 
-  // Halving happened around day 185 (April 2024)
-  const halvingIdx = 185;
-  const v2AdoptIdx = 280;
+    const statusText = v2Lifts
+      ? '⚡ V2 MAKES THIS MACHINE PROFITABLE'
+      : profitable
+        ? `✓ PROFITABLE · V2 saves $${((marginV2 - marginV1) * m.hashTH).toFixed(4)}/day`
+        : `✗ UNPROFITABLE · needs <$${breakEvenPwr.toFixed(3)}/kWh`;
+    const statusColor = v2Lifts ? 'var(--hp)' : profitable ? 'var(--v2)' : 'var(--v1)';
 
-  const satsV1 = HP18M.map((hp, i) => {
-    const btcP = 40000 + i * 87; // rough BTC price growth
-    const sats = (hp / btcP) * 1e8 / (miner.hashrateTH * 1e3) / 86400 * 1e12 * (1 - V1_REJECT);
-    return +sats.toFixed(1);
-  });
-  const satsV2 = HP18M.map((hp, i) => {
-    const btcP = 40000 + i * 87;
-    const sats = (hp / btcP) * 1e8 / (miner.hashrateTH * 1e3) / 86400 * 1e12 * (1 - V2_REJECT);
-    return +sats.toFixed(1);
-  });
-
-  // Band: min/max of V2 rolling ±5 days
-  const v2Upper = satsV2.map((v, i) => v * 1.04);
-  const v2Lower = satsV2.map((v, i) => v * 0.96);
-
-  halvingChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'V2 Upper Band',
-          data: v2Upper,
-          borderColor: 'transparent',
-          backgroundColor: 'rgba(0,229,160,0.12)',
-          fill: '+1',
-          pointRadius: 0,
-          tension: 0.4,
-        },
-        {
-          label: 'V2 Lower Band',
-          data: v2Lower,
-          borderColor: 'transparent',
-          backgroundColor: 'rgba(0,229,160,0)',
-          fill: false,
-          pointRadius: 0,
-          tension: 0.4,
-        },
-        {
-          label: 'Sats/10¹² Cycles (V2)',
-          data: satsV2,
-          borderColor: '#00e5a0',
-          borderWidth: 2,
-          fill: false,
-          pointRadius: 0,
-          tension: 0.4,
-        },
-        {
-          label: 'Sats/10¹² Cycles (V1)',
-          data: satsV1,
-          borderColor: 'rgba(255,82,82,0.55)',
-          borderDash: [4,3],
-          borderWidth: 1.5,
-          fill: false,
-          pointRadius: 0,
-          tension: 0.4,
-        },
-      ]
-    },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...CT.tooltip,
-          callbacks: {
-            label: (ctx) => {
-              const v = ctx.parsed.y;
-              return ` ${ctx.dataset.label}: ${v.toFixed(1)} sats`;
-            }
-          }
-        },
-        annotation: {}
-      },
-      scales: {
-        x: {
-          grid: CT.xGrid,
-          ticks: { ...CT.xTicks, maxTicksLimit: 12 },
-        },
-        y: {
-          grid: CT.yGrid,
-          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) },
-        }
-      }
-    }
+    grid.innerHTML += `
+      <div class="be-card">
+        <div class="be-miner">${m.name}</div>
+        <div class="be-row"><span class="be-key">Efficiency</span><span class="be-val">${m.wth} W/TH</span></div>
+        <div class="be-row"><span class="be-key">Rev / TH / day</span><span class="be-val gold">$${rev.toFixed(6)}</span></div>
+        <div class="be-row"><span class="be-key">Power cost / TH</span><span class="be-val">$${powerPerTH.toFixed(6)}</span></div>
+        <div class="be-row"><span class="be-key">Net margin V1</span><span class="be-val" style="color:${marginV1>0?'var(--v2)':'var(--v1)'}">$${marginV1.toFixed(6)}</span></div>
+        <div class="be-row"><span class="be-key">Net margin V2</span><span class="be-val" style="color:${marginV2>0?'var(--v2)':'var(--v1)'}">$${marginV2.toFixed(6)}</span></div>
+        <div class="be-row"><span class="be-key">Break-even pwr</span><span class="be-val">$${breakEvenPwr.toFixed(3)}/kWh</span></div>
+        <div class="be-bar-bg"><div class="be-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+        <div class="be-status" style="color:${statusColor}">${statusText}</div>
+      </div>`;
   });
 }
 
-// ════════════════════════════════════════════
-// EFFICIENCY METERS
-// ════════════════════════════════════════════
-function buildEffMeters() {
-  const container = document.getElementById('effMeters');
-  container.innerHTML = '';
-
-  const miner = MINERS[minerKey];
-  const total = miner.hashrateTH;
-
-  const configs = [
-    { label: 'V1 Base',    eff: 1 - V1_REJECT,  color: 'var(--v1)',      pct: (1 - V1_REJECT) * 100 },
-    { label: 'V2 Pool',    eff: 1 - V2_REJECT,  color: 'var(--v2)',      pct: (1 - V2_REJECT) * 100 },
-    { label: 'V2 + JN',    eff: 1 - V2_REJECT * 0.7, color: 'var(--hp)', pct: (1 - V2_REJECT * 0.7) * 100 },
-    { label: 'Theoretical',eff: 1.0,             color: 'var(--neutral)', pct: 100 },
-  ];
-
-  configs.forEach(c => {
-    const d = document.createElement('div');
-    d.className = 'eff-row';
-    d.innerHTML = `
-      <div class="eff-label">${c.label}</div>
-      <div class="eff-bar-bg">
-        <div class="eff-bar-fill" style="width:${c.pct.toFixed(3)}%;background:${c.color}"></div>
-      </div>
-      <div class="eff-val" style="color:${c.color}">${c.pct.toFixed(3)}%</div>
-    `;
-    container.appendChild(d);
-  });
-
-  // Gain annotation
-  const gain = ((V1_REJECT - V2_REJECT) / V1_REJECT * 100);
-  const note = document.createElement('div');
-  note.style.cssText = 'font-size:10px;color:var(--v2);margin-top:12px;padding:8px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:4px;line-height:1.6';
-  note.innerHTML = `V2 recovers <strong style="color:var(--v2)">${gain.toFixed(2)}%</strong> of wasted cycles vs V1.<br>
-    @ ${miner.label} (${miner.hashrateTH} TH/s): <strong style="color:var(--hp)">${(miner.hashrateTH * gain / 100).toFixed(2)} TH/s</strong> freed.`;
-  container.appendChild(note);
-}
-
-// ════════════════════════════════════════════
-// MODE TOGGLE
-// ════════════════════════════════════════════
-function setMode(m, btn) {
-  mode = m;
-  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  updateCharts();
-}
-
-function updateCharts() {
-  if (timelineChart) timelineChart.destroy();
-  if (stackedChart) stackedChart.destroy();
-  if (halvingChart) halvingChart.destroy();
-  buildTimeline();
-  buildStacked();
-  buildHalving();
-}
-
-// ════════════════════════════════════════════
-// INIT
-// ════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', async () => {
-  // Fetch live data BEFORE building charts so they render with real values in one shot
+// ══ LIVE FETCH ═════════════════════════════════════════
+async function fetchLive() {
   try {
-    await fetchLiveHashprice();
-  } catch (e) {
-    console.warn('[CycleScope] Live fetch failed, using seed values:', e.message);
+    const res = await fetch('/api/hashprice', { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(res.status);
+    const d = await res.json();
+    HP_USD    = d.priceUSD;
+    BTC_PRICE = d.btcPrice;
+    document.getElementById('s-hp').textContent  = '$' + HP_USD.toFixed(6);
+    document.getElementById('s-btc').textContent = '$' + BTC_PRICE.toLocaleString();
+    document.getElementById('liveStatus').textContent = 'LIVE · ' + new Date().toLocaleTimeString();
+    console.info('[stratumv2.com]', d);
+    return true;
+  } catch(e) {
+    document.getElementById('liveStatus').textContent = 'STALE';
+    return false;
   }
+}
 
-  // Build charts exactly once with whatever data we have
-  recalc();
-  buildTimeline();
-  buildStacked();
-  buildHalving();
+function rebuildAll() {
+  seedHistories();
+  buildChart1();
+  buildChart2();
+  buildChart3();
+}
 
-  // Refresh every 90s
-  setInterval(async () => {
-    try { await fetchLiveHashprice(); recalc(); updateCharts(); } catch {}
-  }, 90_000);
+// ══ INIT ═══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  seedHistories();
+  buildChart1();
+  buildChart2();
+  buildChart3();
+  const ok = await fetchLive();
+  if (ok) rebuildAll();
+  setInterval(async () => { const ok = await fetchLive(); if (ok) rebuildAll(); }, 90_000);
 });
 </script>
 </body>
