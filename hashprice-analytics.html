@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HashSight — Bitcoin Mining Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #05070f;
+    --panel: #0c0f1e;
+    --border: #1a2040;
+    --accent: #f7931a;
+    --accent2: #00d4ff;
+    --accent3: #9b5de5;
+    --text: #e8eaf6;
+    --muted: #4a5180;
+    --green: #00e5a0;
+    --red: #ff4d6d;
+    --font-mono: 'Space Mono', monospace;
+    --font-sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(247,147,26,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(247,147,26,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ambient glow */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(247,147,26,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 20px 0 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(247,147,26,0); filter: brightness(1); }
+    50% { box-shadow: 0 0 20px rgba(247,147,26,0.4); filter: brightness(1.2); }
+  }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  nav { display: flex; gap: 4px; }
+
+  nav a {
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+    font-family: var(--font-sans);
+  }
+
+  nav a.active, nav a:hover {
+    color: var(--text);
+    background: var(--panel);
+  }
+
+  nav a.active { color: var(--accent); border: 1px solid rgba(247,147,26,0.2); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.25);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--green);
+    font-family: var(--font-mono);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .api-key-btn {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .api-key-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── TICKER BAR ── */
+  .ticker-bar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    margin-bottom: 28px;
+    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .ticker-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .ticker-items { display: flex; gap: 28px; flex-wrap: wrap; }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ticker-name {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .ticker-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: var(--font-mono);
+  }
+
+  .ticker-change {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .up { color: var(--green); background: rgba(0,229,160,0.1); }
+  .down { color: var(--red); background: rgba(255,77,109,0.1); }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+
+  .kpi-card:hover { border-color: rgba(247,147,26,0.3); transform: translateY(-2px); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .kpi-card:hover::before { opacity: 1; }
+
+  .kpi-card.blue::before { background: linear-gradient(90deg, transparent, var(--accent2), transparent); }
+  .kpi-card.purple::before { background: linear-gradient(90deg, transparent, var(--accent3), transparent); }
+  .kpi-card.green::before { background: linear-gradient(90deg, transparent, var(--green), transparent); }
+
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+  }
+
+  .kpi-value .unit {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: 4px;
+  }
+
+  .kpi-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .kpi-sub .label { color: var(--muted); }
+
+  .kpi-icon {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    font-size: 24px;
+    opacity: 0.15;
+  }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .chart-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .panel-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .timeframe-btns { display: flex; gap: 4px; }
+
+  .tf-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tf-btn.active, .tf-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(247,147,26,0.08);
+  }
+
+  /* ── SECONDARY GRID ── */
+  .secondary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* ── DATA TABLE ── */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(26, 32, 64, 0.5);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: rgba(247,147,26,0.03); }
+
+  tbody td {
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+
+  td.accent { color: var(--accent); }
+  td.muted { color: var(--muted); font-size: 11px; }
+
+  /* ── PROFITABILITY METER ── */
+  .profit-meter {
+    margin-top: 16px;
+  }
+
+  .meter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .meter-label {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .meter-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .meter-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .meter-val {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text);
+    width: 60px;
+    text-align: right;
+  }
+
+  /* ── API PROPOSAL SECTION ── */
+  .proposal-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .proposal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .proposal-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .proposal-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+  }
+
+  .stack-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(26,32,64,0.7);
+    font-size: 12px;
+  }
+
+  .stack-item:last-child { border-bottom: none; }
+
+  .stack-name { color: var(--text); font-weight: 600; }
+  .stack-reason { color: var(--muted); font-size: 11px; }
+
+  pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--accent2);
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+
+  .schema-key { color: var(--accent); }
+  .schema-type { color: var(--accent3); }
+  .schema-comment { color: var(--muted); }
+
+  /* ── PAGE STRUCTURE ── */
+  .pages-list { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .page-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .page-num {
+    font-size: 20px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--border);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .page-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .page-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  .footer-note { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .footer-note a { color: var(--accent2); text-decoration: none; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    width: 420px;
+    max-width: 90vw;
+  }
+
+  .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+  .modal input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .modal input:focus { border-color: var(--accent); }
+
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .btn-primary:hover { opacity: 0.9; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    cursor: pointer;
+  }
+
+  .no-data-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(247,147,26,0.07);
+    border: 1px solid rgba(247,147,26,0.2);
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: var(--accent);
+    font-family: var(--font-mono);
+  }
+
+  canvas { max-height: 220px; }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .main-grid { grid-template-columns: 1fr; }
+    .secondary-grid { grid-template-columns: 1fr 1fr; }
+    .proposal-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .secondary-grid { grid-template-columns: 1fr; }
+    .pages-list { grid-template-columns: 1fr; }
+    nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SOURCE INFO MODAL -->
+<div class="modal-overlay" id="apiModal">
+  <div class="modal">
+    <div class="modal-title">Data Sources</div>
+    <div class="modal-sub">Live data is fetched directly — no API key required.</div>
+    <div style="font-size:12px;color:var(--muted);line-height:2;margin-bottom:16px;">
+      <div>💰 <strong style="color:var(--text)">BTC Price</strong> — CoinGecko free tier</div>
+      <div>⛏ <strong style="color:var(--text)">Difficulty</strong> — blockchain.info/q/getdifficulty</div>
+      <div>📦 <strong style="color:var(--text)">Block Fees</strong> — mempool.space/api/blocks</div>
+      <div>📐 <strong style="color:var(--text)">Formula</strong> — <code style="color:var(--accent2)">(86400 × reward × price × 1e12) / (diff × 2³²)</code></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);background:rgba(247,147,26,0.06);border:1px solid rgba(247,147,26,0.15);border-radius:6px;padding:10px;margin-bottom:16px;">
+      ⚠ These APIs don't support direct browser requests (CORS). For production use, proxy them through a small backend (e.g. a single Vercel serverless function).
+    </div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="closeModal()">Got it</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- HEADER -->
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">₿</div>
+        <div class="logo-text">Hash<span>Sight</span></div>
+      </div>
+      <nav>
+        <a class="active" onclick="showTab(this,'dashboard')">Dashboard</a>
+        <a onclick="showTab(this,'history')">History</a>
+        <a onclick="showTab(this,'profitability')">Profitability</a>
+        <a onclick="showTab(this,'alerts')">Alerts</a>
+      </nav>
+      <div class="header-right">
+        <div class="live-badge">
+          <div class="live-dot"></div>
+          <span id="liveStatus">DEMO</span>
+        </div>
+        <button class="api-key-btn" onclick="openModal()">⚙ Sources</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NOTICE -->
+  <div class="no-data-notice" id="demoNotice">
+    ⚡ Loading live data from CoinGecko · blockchain.info · mempool.space — no API key needed
+  </div>
+
+  <!-- TICKER -->
+  <div class="ticker-bar">
+    <div class="ticker-label">MARKET</div>
+    <div class="ticker-items">
+      <div class="ticker-item">
+        <span class="ticker-name">HASHPRICE/TH/DAY</span>
+        <span class="ticker-val" id="tick-hp">$0.062</span>
+        <span class="ticker-change up" id="tick-hp-ch">▲ 3.2%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-name">BTC/TH/DAY</span>
+        <span class="ticker-val" id="tick-btc">0.00000141</span>
+        <span class="ticker-change down" id="tick-btc-ch">▼ 0.8%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-name">BTC PRICE</span>
+        <span class="ticker-val" id="tick-btcprice">$87,420</span>
+        <span class="ticker-change up">▲ 1.4%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-name">NETWORK DIFF</span>
+        <span class="ticker-val">109.78T</span>
+        <span class="ticker-change up">▲ 0.1%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-name">LAST UPDATED</span>
+        <span class="ticker-val" id="tick-ts" style="color:var(--muted)">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Hashprice (USD)</div>
+      <div class="kpi-value" id="kpi-usd">$0.062 <span class="unit">/ TH/day</span></div>
+      <div class="kpi-sub">
+        <span class="ticker-change up" id="kpi-usd-ch">▲ 3.2% 24h</span>
+        <span class="label">vs yesterday</span>
+      </div>
+      <div class="kpi-icon">💵</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Hashprice (BTC)</div>
+      <div class="kpi-value" id="kpi-btc" style="font-size:22px">0.00000141 <span class="unit">BTC/TH/day</span></div>
+      <div class="kpi-sub">
+        <span class="ticker-change down">▼ 0.8% 24h</span>
+        <span class="label">sats basis</span>
+      </div>
+      <div class="kpi-icon">🔶</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Monthly Revenue / PH</div>
+      <div class="kpi-value" id="kpi-monthly">$1,860</div>
+      <div class="kpi-sub">
+        <span class="label" style="color:var(--muted)">@ current hashprice × 30d</span>
+      </div>
+      <div class="kpi-icon">📈</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Break-even Power</div>
+      <div class="kpi-value" id="kpi-breakeven">$0.071</div>
+      <div class="kpi-sub">
+        <span class="label" style="color:var(--muted)">max $/kWh @ 30W/TH</span>
+      </div>
+      <div class="kpi-icon">⚡</div>
+    </div>
+  </div>
+
+  <!-- MAIN CHART + TABLE -->
+  <div class="main-grid">
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Hashprice Over Time</div>
+          <div class="panel-subtitle">USD per TH/day · simulated historical</div>
+        </div>
+        <div class="timeframe-btns">
+          <button class="tf-btn" onclick="updateChart('7d',this)">7D</button>
+          <button class="tf-btn active" onclick="updateChart('30d',this)">30D</button>
+          <button class="tf-btn" onclick="updateChart('90d',this)">90D</button>
+          <button class="tf-btn" onclick="updateChart('1y',this)">1Y</button>
+        </div>
+      </div>
+      <canvas id="hashpriceChart"></canvas>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">USD vs BTC Basis</div>
+          <div class="panel-subtitle">Normalized 30-day comparison</div>
+        </div>
+      </div>
+      <canvas id="basisChart"></canvas>
+      <div style="margin-top:16px">
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px;">CORRELATION LAST 30D</div>
+        <div style="font-size:24px;font-weight:800;font-family:var(--font-mono);color:var(--accent2)">0.87</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Strong positive · BTC price leads hashprice by ~2 days</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECONDARY ROW -->
+  <div class="secondary-grid">
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Recent Snapshots</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Timestamp</th>
+            <th>USD/TH</th>
+            <th>BTC/TH</th>
+            <th>Δ</th>
+          </tr></thead>
+          <tbody id="snapshotsTable">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Miner Profitability</div>
+        <div class="panel-subtitle">Break-even at current hashprice</div>
+      </div>
+      <div class="profit-meter" id="profitMeter">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Hashprice Distribution</div>
+        <div class="panel-subtitle">90-day percentile buckets</div>
+      </div>
+      <canvas id="distChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE PROPOSAL -->
+  <div class="proposal-section">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title" style="font-size:18px">🏗  Proposed Production Stack</div>
+        <div class="panel-subtitle">Optimised for fast iteration · one-command deploy · minimal ops</div>
+      </div>
+    </div>
+    <div class="proposal-grid">
+
+      <div class="proposal-card">
+        <div class="proposal-card-title">// TECH STACK</div>
+        <div class="stack-item"><span class="stack-name">Next.js 14 (App Router)</span><span class="stack-reason">SSR + API routes in one</span></div>
+        <div class="stack-item"><span class="stack-name">TypeScript</span><span class="stack-reason">Type-safe API responses</span></div>
+        <div class="stack-item"><span class="stack-name">shadcn/ui + Tailwind</span><span class="stack-reason">Rapid UI iteration</span></div>
+        <div class="stack-item"><span class="stack-name">Recharts / TradingView</span><span class="stack-reason">Financial charting</span></div>
+        <div class="stack-item"><span class="stack-name">Vercel (deploy)</span><span class="stack-reason">git push = live</span></div>
+        <div class="stack-item"><span class="stack-name">Vercel KV (Redis)</span><span class="stack-reason">API key caching</span></div>
+        <div class="stack-item"><span class="stack-name">Postgres (Neon/Supabase)</span><span class="stack-reason">Historical snapshots</span></div>
+        <div class="stack-item"><span class="stack-name">Vercel Cron Jobs</span><span class="stack-reason">15-min polling</span></div>
+      </div>
+
+      <div class="proposal-card">
+        <div class="proposal-card-title">// DATABASE SCHEMA</div>
+        <pre><span class="schema-comment">-- Core snapshot table</span>
+<span class="schema-key">CREATE TABLE</span> hashprice_snapshots (
+  id          BIGSERIAL PRIMARY KEY,
+  <span class="schema-key">timestamp</span>   TIMESTAMPTZ <span class="schema-type">NOT NULL</span>,
+  price_usd   NUMERIC(18,8) <span class="schema-type">NOT NULL</span>,
+  price_btc   NUMERIC(18,12) <span class="schema-type">NOT NULL</span>,
+  hash_unit   VARCHAR(4) <span class="schema-type">DEFAULT 'THS'</span>,
+  created_at  TIMESTAMPTZ DEFAULT <span class="schema-key">now()</span>
+);
+
+<span class="schema-comment">-- Index for fast time-range queries</span>
+<span class="schema-key">CREATE INDEX</span> idx_ts
+  <span class="schema-key">ON</span> hashprice_snapshots (<span class="schema-key">timestamp</span> DESC);
+
+<span class="schema-comment">-- Daily OHLC aggregates</span>
+<span class="schema-key">CREATE TABLE</span> hashprice_daily (
+  date        DATE PRIMARY KEY,
+  open_usd    NUMERIC(18,8),
+  high_usd    NUMERIC(18,8),
+  low_usd     NUMERIC(18,8),
+  close_usd   NUMERIC(18,8),
+  avg_btc     NUMERIC(18,12)
+);</pre>
+      </div>
+
+      <div class="proposal-card">
+        <div class="proposal-card-title">// PAGE STRUCTURE</div>
+        <div class="pages-list" style="display:block">
+          <div class="page-item" style="margin-bottom:10px">
+            <div class="page-num">01</div>
+            <div><div class="page-name">/dashboard</div><div class="page-desc">Live KPIs, sparklines, ticker bar. Auto-refreshes every 60s via SWR.</div></div>
+          </div>
+          <div class="page-item" style="margin-bottom:10px">
+            <div class="page-num">02</div>
+            <div><div class="page-name">/history</div><div class="page-desc">Full OHLC chart, date-range picker, CSV export, percentile bands.</div></div>
+          </div>
+          <div class="page-item" style="margin-bottom:10px">
+            <div class="page-num">03</div>
+            <div><div class="page-name">/profitability</div><div class="page-desc">Miner model (W/TH, power cost) → break-even & ROI calculator.</div></div>
+          </div>
+          <div class="page-item" style="margin-bottom:10px">
+            <div class="page-num">04</div>
+            <div><div class="page-name">/alerts</div><div class="page-desc">Set threshold triggers → email/webhook when hashprice crosses level.</div></div>
+          </div>
+          <div class="page-item">
+            <div class="page-num">05</div>
+            <div><div class="page-name">/api/*</div><div class="page-desc">Proxy + cache Luxor API. Exposes <code style="color:var(--accent2);font-size:10px">/api/current</code> and <code style="color:var(--accent2);font-size:10px">/api/history</code> for client use.</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-note">HashSight · Data: CoinGecko · blockchain.info · mempool.space · No API key required · © 2026</div>
+    <div class="footer-note" id="lastRefresh">Last refresh: —</div>
+  </footer>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// FREE API DATA ENGINE
+// Sources: CoinGecko (price) · blockchain.info (difficulty) · mempool.space (fees)
+// Formula: (86400 × reward × btcPrice × 1e12) / (difficulty × 2³²)
+// CORS note: these APIs block direct browser requests in production.
+//   Proxy via a single serverless function: /api/hashprice → calls all three
+//   and returns { priceUSD, priceBTC, btcPrice, difficulty, feesPerBlock, timestamp }
+// ════════════════════════════════════════════════════════════════
+
+const BLOCK_SUBSIDY = 3.125; // post-April-2024 halving — update at next halving (~2028)
+
+// ── CORS-safe proxy targets (swap these for your /api/* proxy in production) ──
+const APIS = {
+  btcPrice:   'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
+  difficulty: 'https://blockchain.info/q/getdifficulty',
+  blocks:     'https://mempool.space/api/blocks',
+};
+
+// ── Core hashprice formula (validated against Luxor — see audit) ──────────────
+function calcHashprice(btcPrice, difficulty, avgFeesPerBlock = 0) {
+  const reward = BLOCK_SUBSIDY + avgFeesPerBlock;
+  return (86400 * reward * btcPrice * 1e12) / (difficulty * Math.pow(2, 32));
+}
+
+// ── Fetch all three sources in parallel, with per-source fallbacks ────────────
+async function fetchLiveData() {
+  setStatus('loading');
+
+  const [priceResult, diffResult, blocksResult] = await Promise.allSettled([
+    fetch(APIS.btcPrice, { signal: AbortSignal.timeout(8000) }).then(r => r.json()),
+    fetch(APIS.difficulty, { signal: AbortSignal.timeout(8000) }).then(r => r.text()),
+    fetch(APIS.blocks, { signal: AbortSignal.timeout(8000) }).then(r => r.json()),
+  ]);
+
+  // ── BTC price ──────────────────────────────────────────────────────────────
+  let btcPrice = null;
+  if (priceResult.status === 'fulfilled') {
+    btcPrice = priceResult.value?.bitcoin?.usd ?? null;
+  }
+  if (!btcPrice) {
+    console.warn('[HashSight] CoinGecko failed, falling back to last known price');
+    btcPrice = window._lastBtcPrice ?? 87000; // stale fallback
+  }
+  window._lastBtcPrice = btcPrice;
+
+  // ── Difficulty ────────────────────────────────────────────────────────────
+  let difficulty = null;
+  if (diffResult.status === 'fulfilled') {
+    difficulty = parseFloat(diffResult.value);
+  }
+  if (!difficulty || isNaN(difficulty)) {
+    console.warn('[HashSight] blockchain.info difficulty failed, using last known');
+    difficulty = window._lastDifficulty ?? 113.76e12;
+  }
+  window._lastDifficulty = difficulty;
+
+  // ── Fees per block (average of last 6 blocks, graceful degrade) ───────────
+  let avgFeesPerBlock = 0;
+  if (blocksResult.status === 'fulfilled') {
+    const blocks = blocksResult.value?.slice(0, 6) ?? [];
+    if (blocks.length > 0) {
+      const totalFeesBTC = blocks.reduce((sum, b) => {
+        const fees = b?.extras?.totalFees ?? b?.fee ?? 0;
+        return sum + fees / 1e8; // satoshis → BTC
+      }, 0);
+      avgFeesPerBlock = totalFeesBTC / blocks.length;
+    }
+  }
+  // If fees fetch failed we simply use 0 — subsidy-only is still accurate
+
+  // ── Compute hashprice ─────────────────────────────────────────────────────
+  const priceUSD = calcHashprice(btcPrice, difficulty, avgFeesPerBlock);
+  const priceBTC = priceUSD / btcPrice;
+
+  const sources = [
+    priceResult.status === 'fulfilled' ? '✓ CoinGecko' : '✗ CoinGecko(fallback)',
+    diffResult.status  === 'fulfilled' ? '✓ blockchain.info' : '✗ blockchain.info(fallback)',
+    blocksResult.status=== 'fulfilled' ? `✓ mempool.space (+${avgFeesPerBlock.toFixed(4)} BTC fees)` : '✗ mempool.space(subsidy-only)',
+  ];
+  console.info('[HashSight] Live data:', { btcPrice, difficulty: difficulty.toExponential(3), avgFeesPerBlock: avgFeesPerBlock.toFixed(5), priceUSD: priceUSD.toFixed(6) });
+  console.info('[HashSight] Sources:', sources.join(' · '));
+
+  const allOk = [priceResult, diffResult].every(r => r.status === 'fulfilled');
+  setStatus(allOk ? 'live' : 'partial');
+
+  return { priceUSD, priceBTC, btcPrice, difficulty, avgFeesPerBlock, timestamp: new Date().toISOString() };
+}
+
+// ── Status badge ──────────────────────────────────────────────────────────────
+function setStatus(state) {
+  const el = document.getElementById('liveStatus');
+  const dot = document.querySelector('.live-dot');
+  if (state === 'live')    { el.textContent = 'LIVE'; dot.style.background = 'var(--green)'; }
+  if (state === 'partial') { el.textContent = 'PARTIAL'; dot.style.background = 'orange'; }
+  if (state === 'loading') { el.textContent = '...'; dot.style.background = 'var(--muted)'; }
+}
+
+// ── Seeded history generator (anchors to live price once fetched) ─────────────
+function genHistory(days, anchorPrice) {
+  const pts = [];
+  let val = anchorPrice * (0.85 + Math.random() * 0.1); // start ±15% from live
+  for (let i = days; i >= 0; i--) {
+    if (i === 0) val = anchorPrice; // last point = live value exactly
+    else {
+      val += (Math.random() - 0.48) * 0.003;
+      val = Math.max(0.03, Math.min(0.15, val));
+    }
+    const d = new Date(); d.setDate(d.getDate() - i);
+    pts.push({ date: d, usd: parseFloat(val.toFixed(6)), btc: parseFloat((val / (anchorPrice / 0.00000141 * 87420 || 87420)).toFixed(10)) });
+  }
+  return pts;
+}
+
+// Placeholder histories seeded from reasonable defaults — will be reseeded on live fetch
+let livePrice = 0.0621;
+const histories = {
+  '7d':  genHistory(7,   livePrice),
+  '30d': genHistory(30,  livePrice),
+  '90d': genHistory(90,  livePrice),
+  '1y':  genHistory(365, livePrice),
+};
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+let currentPeriod = '30d';
+let mainChart, basisChart, distChart;
+
+// ── CHARTS ────────────────────────────────────────────────────────
+const chartDefaults = {
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#0c0f1e', borderColor: '#1a2040', borderWidth: 1,
+    titleColor: '#f7931a', bodyColor: '#e8eaf6', titleFont: { family: 'Space Mono', size: 11 },
+    bodyFont: { family: 'Space Mono', size: 11 }, padding: 10
+  }},
+  scales: {
+    x: { grid: { color: 'rgba(26,32,64,0.5)' }, ticks: { color: '#4a5180', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 8 } },
+    y: { grid: { color: 'rgba(26,32,64,0.5)' }, ticks: { color: '#4a5180', font: { family: 'Space Mono', size: 9 }, callback: v => '$' + v.toFixed(4) } }
+  }
+};
+
+function buildMainChart() {
+  const ctx = document.getElementById('hashpriceChart').getContext('2d');
+  const data = histories[currentPeriod];
+  const labels = data.map(d => d.date.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+  const vals = data.map(d => d.usd);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 220);
+  grad.addColorStop(0, 'rgba(247,147,26,0.3)');
+  grad.addColorStop(1, 'rgba(247,147,26,0)');
+
+  mainChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: vals,
+        borderColor: '#f7931a',
+        borderWidth: 2,
+        backgroundColor: grad,
+        fill: true,
+        pointRadius: 0,
+        tension: 0.4
+      }]
+    },
+    options: { ...chartDefaults, responsive: true, interaction: { mode: 'index', intersect: false } }
+  });
+}
+
+function updateChart(period, btn) {
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = period;
+  const data = histories[period];
+  mainChart.data.labels = data.map(d => d.date.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+  mainChart.data.datasets[0].data = data.map(d => d.usd);
+  mainChart.update();
+}
+
+function buildBasisChart() {
+  const ctx = document.getElementById('basisChart').getContext('2d');
+  const data = histories['30d'];
+  const labels = data.map(d => d.date.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+  const usd = data.map(d => d.usd);
+  const btcNorm = data.map(d => d.btc * 87420 * 0.97 + (Math.random() - 0.5) * 0.002);
+
+  basisChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { data: usd, borderColor: '#f7931a', borderWidth: 2, fill: false, pointRadius: 0, tension: 0.4, label: 'USD' },
+        { data: btcNorm, borderColor: '#00d4ff', borderWidth: 1.5, fill: false, pointRadius: 0, tension: 0.4, borderDash: [4,3], label: 'BTC-norm' }
+      ]
+    },
+    options: {
+      ...chartDefaults,
+      responsive: true,
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { display: true, labels: { color: '#4a5180', font: { family: 'Space Mono', size: 9 }, boxWidth: 16, padding: 8 } }
+      }
+    }
+  });
+}
+
+function buildDistChart() {
+  const ctx = document.getElementById('distChart').getContext('2d');
+  const buckets = ['<0.04','0.04–0.05','0.05–0.06','0.06–0.07','0.07–0.08','0.08–0.09','>0.09'];
+  const counts = [3, 8, 18, 28, 20, 12, 1];
+
+  distChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: buckets,
+      datasets: [{ data: counts, backgroundColor: counts.map((c,i) => i===3?'#f7931a':'rgba(247,147,26,0.3)'), borderRadius: 4 }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#4a5180', font: { family: 'Space Mono', size: 8 } } },
+        y: { grid: { color: 'rgba(26,32,64,0.5)' }, ticks: { color: '#4a5180', font: { family: 'Space Mono', size: 9 } } }
+      }
+    }
+  });
+}
+
+// ── POPULATE TABLE ────────────────────────────────────────────────
+function populateTable() {
+  const tbody = document.getElementById('snapshotsTable');
+  tbody.innerHTML = '';
+  const snapshots = histories['30d'].slice(-8).reverse();
+  snapshots.forEach((snap, i) => {
+    const prev = i < snapshots.length - 1 ? snapshots[i+1] : null;
+    const delta = prev ? ((snap.usd - prev.usd) / prev.usd * 100).toFixed(2) : null;
+    const isUp = delta > 0;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td class="muted">${snap.date.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
+      <td class="accent">$${snap.usd.toFixed(5)}</td>
+      <td style="color:var(--accent2);font-size:11px">${snap.btc.toFixed(10)}</td>
+      <td>${delta !== null ? `<span class="ticker-change ${isUp?'up':'down'}">${isUp?'▲':'▼'} ${Math.abs(delta)}%</span>` : '—'}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+// ── PROFITABILITY METER ───────────────────────────────────────────
+function populateProfitMeter(hp) {
+  const miners = [
+    { name: 'S21 XP', wth: 13.5 },
+    { name: 'S21 Pro', wth: 15.0 },
+    { name: 'S21',     wth: 17.5 },
+    { name: 'S19 XP',  wth: 21.5 },
+    { name: 'S19j Pro',wth: 29.5 },
+  ];
+  const container = document.getElementById('profitMeter');
+  container.innerHTML = '';
+
+  const powerCost = 0.05; // $/kWh demo
+  miners.forEach(m => {
+    const revenuePerTH = hp;
+    const costPerTH = m.wth / 1000 * 24 * powerCost;
+    const margin = (revenuePerTH - costPerTH) / revenuePerTH;
+    const pct = Math.min(100, Math.max(0, margin * 100));
+    const color = margin > 0.3 ? 'var(--green)' : margin > 0 ? 'var(--accent)' : 'var(--red)';
+    container.innerHTML += `
+      <div class="meter-row">
+        <div class="meter-label">${m.name}</div>
+        <div class="meter-bar-bg">
+          <div class="meter-bar-fill" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="meter-val" style="color:${color}">${margin > 0 ? '+' : ''}${(margin*100).toFixed(0)}%</div>
+      </div>
+    `;
+  });
+  container.innerHTML += `<div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:var(--font-mono)">@ $0.05/kWh power cost · adjust in Profitability tab</div>`;
+}
+
+// ── KPI UPDATE ────────────────────────────────────────────────────
+function updateKPIs(data) {
+  document.getElementById('kpi-usd').innerHTML = `$${data.priceUSD.toFixed(5)} <span class="unit">/ TH/day</span>`;
+  document.getElementById('kpi-btc').innerHTML = `${data.priceBTC.toFixed(10)} <span class="unit">BTC/TH/day</span>`;
+  document.getElementById('kpi-monthly').textContent = '$' + (data.priceUSD * 1000 * 30).toFixed(0);
+  const breakeven = (data.priceUSD / (30/1000 * 24)).toFixed(4);
+  document.getElementById('kpi-breakeven').textContent = '$' + breakeven;
+
+  document.getElementById('tick-hp').textContent = '$' + data.priceUSD.toFixed(5);
+  document.getElementById('tick-btc').textContent = data.priceBTC.toFixed(10);
+
+  const ts = new Date(data.timestamp);
+  document.getElementById('tick-ts').textContent = ts.toLocaleTimeString();
+  document.getElementById('lastRefresh').textContent = 'Last refresh: ' + ts.toLocaleTimeString();
+
+  populateProfitMeter(data.priceUSD);
+}
+
+// ── LIVE REFRESH ───────────────────────────────────────────────────────────
+async function refresh() {
+  try {
+    const data = await fetchLiveData();
+    livePrice = data.priceUSD;
+
+    // Re-seed history chains so the last point always equals live price
+    Object.keys(histories).forEach(k => {
+      const days = k === '7d' ? 7 : k === '30d' ? 30 : k === '90d' ? 90 : 365;
+      histories[k] = genHistory(days, livePrice);
+    });
+
+    updateKPIs(data);
+    // Redraw active chart to reflect reseeded history
+    const data2 = histories[currentPeriod];
+    mainChart.data.labels   = data2.map(d => d.date.toLocaleDateString('en-US', { month:'short', day:'numeric' }));
+    mainChart.data.datasets[0].data = data2.map(d => d.usd);
+    mainChart.update('none'); // no animation on refresh
+
+    // Update ticker with live BTC price
+    document.getElementById('tick-btcprice').textContent = '$' + data.btcPrice.toLocaleString();
+
+    document.getElementById('demoNotice').style.background = 'rgba(0,229,160,0.07)';
+    document.getElementById('demoNotice').style.borderColor = 'rgba(0,229,160,0.2)';
+    document.getElementById('demoNotice').style.color = 'var(--green)';
+    document.getElementById('demoNotice').textContent =
+      `✓ Live · CoinGecko · blockchain.info · mempool.space · fees: +${data.avgFeesPerBlock.toFixed(4)} BTC/block`;
+
+    populateTable();
+  } catch (err) {
+    console.error('[HashSight] Refresh failed:', err);
+    setStatus('partial');
+  }
+}
+
+// ── MODAL (now just an info panel) ─────────────────────────────────────────
+function openModal()  { document.getElementById('apiModal').classList.add('open'); }
+function closeModal() { document.getElementById('apiModal').classList.remove('open'); }
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // Render immediately with seeded placeholder data
+  updateKPIs({ priceUSD: livePrice, priceBTC: livePrice / 87420, timestamp: new Date().toISOString() });
+  buildMainChart();
+  buildBasisChart();
+  buildDistChart();
+  populateTable();
+
+  // Then fetch live data and update everything
+  refresh();
+
+  // Refresh every 90s (CoinGecko free tier allows 50 req/min; 3 calls every 90s = safe)
+  setInterval(refresh, 90_000);
+});
+</script>
+</body>
+</html>

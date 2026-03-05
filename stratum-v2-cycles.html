@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CycleScope — SHA-256 Efficiency × Stratum V2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #080b10;
+  --surface: #0d1117;
+  --panel: #111820;
+  --border: #1c2535;
+  --border2: #243040;
+  --hp: #ffe566;        /* hashprice gold */
+  --v1: #ff5252;        /* v1 red/wasted */
+  --v2: #00e5a0;        /* v2 green/effective */
+  --neutral: #4a90d9;   /* cycles blue */
+  --text: #cdd9e8;
+  --muted: #4a6080;
+  --muted2: #2a3a50;
+  --font: 'IBM Plex Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 0 20px 40px; }
+
+/* ── HEADER ── */
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.logo-block {}
+.logo-eyebrow {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.logo-title {
+  font-family: var(--display);
+  font-size: 42px;
+  letter-spacing: 3px;
+  line-height: 1;
+  color: var(--text);
+}
+.logo-title span { color: var(--v2); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── PROTOCOL TOGGLE ── */
+.toggle-group {
+  display: flex;
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.toggle-btn {
+  padding: 8px 18px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.toggle-btn.v1 { color: var(--muted); }
+.toggle-btn.v2 { color: var(--muted); }
+.toggle-btn.v1.active { background: rgba(255,82,82,0.15); color: var(--v1); }
+.toggle-btn.v2.active { background: rgba(0,229,160,0.12); color: var(--v2); }
+.toggle-btn.both.active { background: rgba(255,229,102,0.1); color: var(--hp); }
+
+.miner-select {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* ── STAT BAR ── */
+.stat-bar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.stat-cell {
+  background: var(--panel);
+  padding: 12px 16px;
+  transition: background 0.2s;
+}
+.stat-cell:hover { background: var(--surface); }
+.stat-cell-label {
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.stat-cell-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-cell-value.gold { color: var(--hp); }
+.stat-cell-value.green { color: var(--v2); }
+.stat-cell-value.red { color: var(--v1); }
+.stat-cell-value.blue { color: var(--neutral); }
+.stat-cell-sub { font-size: 9px; color: var(--muted); margin-top: 3px; }
+
+/* ── CHART GRID ── */
+.chart-grid-top {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chart-grid-bot {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+}
+.card.gold-top::after { background: linear-gradient(90deg, transparent, var(--hp) 40%, transparent); }
+.card.green-top::after { background: linear-gradient(90deg, transparent, var(--v2) 40%, transparent); }
+.card.blue-top::after { background: linear-gradient(90deg, transparent, var(--neutral) 40%, transparent); }
+.card.red-top::after { background: linear-gradient(90deg, transparent, var(--v1) 40%, transparent); }
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.card-subtitle { font-size: 13px; font-weight: 600; color: var(--text); }
+
+.card-badge {
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.badge-gold { background: rgba(255,229,102,0.12); color: var(--hp); border: 1px solid rgba(255,229,102,0.2); }
+.badge-green { background: rgba(0,229,160,0.1); color: var(--v2); border: 1px solid rgba(0,229,160,0.2); }
+.badge-red { background: rgba(255,82,82,0.1); color: var(--v1); border: 1px solid rgba(255,82,82,0.2); }
+
+/* ── LEGEND ── */
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.legend-line {
+  width: 20px;
+  height: 2px;
+  flex-shrink: 0;
+}
+
+/* ── SCATTER PLOT custom ── */
+#scatterCanvas { cursor: crosshair; }
+
+/* ── EFFICIENCY METER ── */
+.eff-meters { margin-top: 8px; }
+.eff-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.eff-label { font-size: 10px; color: var(--muted); width: 70px; flex-shrink: 0; }
+.eff-bar-bg {
+  flex: 1;
+  height: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.eff-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.eff-bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 0px,
+    rgba(255,255,255,0.04) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+.eff-val { font-size: 11px; font-weight: 700; width: 42px; text-align: right; }
+
+/* ── HALVING STRIP ── */
+.halving-annotations { margin-top: 14px; display: flex; gap: 16px; }
+.halving-tag {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 3px;
+}
+.halving-tag.highlight { border-color: var(--v2); color: var(--v2); background: rgba(0,229,160,0.06); }
+
+/* ── TOOLTIP ── */
+.chart-tooltip {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 10px;
+  line-height: 1.7;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 50;
+  max-width: 200px;
+}
+.chart-tooltip.visible { opacity: 1; }
+.tt-title { color: var(--hp); font-weight: 700; margin-bottom: 4px; font-size: 11px; }
+.tt-row { display: flex; justify-content: space-between; gap: 16px; }
+.tt-label { color: var(--muted); }
+.tt-val { color: var(--text); font-weight: 600; }
+
+canvas { display: block; }
+
+@media (max-width: 1100px) {
+  .chart-grid-top, .chart-grid-bot { grid-template-columns: 1fr; }
+  .stat-bar { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  .stat-bar { grid-template-columns: repeat(2, 1fr); }
+  .logo-title { font-size: 30px; }
+}
+</style>
+</head>
+<body>
+<div id="tooltip" class="chart-tooltip"></div>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo-block">
+      <div class="logo-eyebrow">SHA-256 Cycle Efficiency Analytics</div>
+      <div class="logo-title">CYCLE<span>SCOPE</span></div>
+    </div>
+    <div class="header-right">
+      <select class="miner-select" id="minerModel" onchange="recalc()">
+        <option value="s21xp">Antminer S21 XP · 13.5 W/T</option>
+        <option value="s21pro">Antminer S21 Pro · 15.0 W/T</option>
+        <option value="s21">Antminer S21 · 17.5 W/T</option>
+        <option value="s19xp">Antminer S19 XP · 21.5 W/T</option>
+      </select>
+      <div class="toggle-group">
+        <button class="toggle-btn v1" onclick="setMode('v1',this)">STRATUM V1</button>
+        <button class="toggle-btn both active" onclick="setMode('both',this)">COMPARE</button>
+        <button class="toggle-btn v2" onclick="setMode('v2',this)">STRATUM V2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAT BAR -->
+  <div class="stat-bar">
+    <div class="stat-cell">
+      <div class="stat-cell-label">Hashprice USD/TH/d</div>
+      <div class="stat-cell-value gold" id="s-hp">$0.0621</div>
+      <div class="stat-cell-sub">demo · live via API key</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell-label">Effective Cycles/s (V2)</div>
+      <div class="stat-cell-value green" id="s-effcyc">149.85 TH/s</div>
+      <div class="stat-cell-sub">@ 0.015% reject</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell-label">Wasted Cycles (V1)</div>
+      <div class="stat-cell-value red" id="s-waste">0.72 TH/s</div>
+      <div class="stat-cell-sub">stale + reject overhead</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell-label">V2 Efficiency Gain</div>
+      <div class="stat-cell-value green" id="s-gain">+0.47%</div>
+      <div class="stat-cell-sub">vs Stratum V1 baseline</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell-label">USD / 10¹⁵ Cycles</div>
+      <div class="stat-cell-value gold" id="s-cprice">$0.000718</div>
+      <div class="stat-cell-sub">cycle-normalised price</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-cell-label">Sats / 10¹² Cycles</div>
+      <div class="stat-cell-value blue" id="s-sats">161 sats</div>
+      <div class="stat-cell-sub">halving-aware metric</div>
+    </div>
+  </div>
+
+  <!-- ROW 1: Timeline + Efficiency Bars -->
+  <div class="chart-grid-top">
+
+    <div class="card gold-top">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Chart 1 · Dual-Axis Timeline</div>
+          <div class="card-subtitle">Hashprice vs Effective SHA-256 Cycles/s</div>
+        </div>
+        <div class="card-badge badge-gold">30D</div>
+      </div>
+      <canvas id="timelineChart" height="200"></canvas>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background:var(--hp)"></div>Hashprice USD/TH/d</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--v2)"></div>Eff. Cycles (V2)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--v1);opacity:0.6"></div>Eff. Cycles (V1)</div>
+      </div>
+    </div>
+
+    <div class="card green-top">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Cycle Efficiency by Protocol</div>
+          <div class="card-subtitle">Effective vs Wasted Cycles per Miner</div>
+        </div>
+        <div class="card-badge badge-green">V1 vs V2</div>
+      </div>
+      <div class="eff-meters" id="effMeters"></div>
+    </div>
+
+  </div>
+
+  <!-- ROW 2: Stacked Bar + Scatter + Halving -->
+  <div class="chart-grid-bot">
+
+    <div class="card red-top">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Chart 2 · Wasted Cycles</div>
+          <div class="card-subtitle">Stacked: Effective vs Wasted per Bucket</div>
+        </div>
+        <div class="card-badge badge-red">14D BUCKETS</div>
+      </div>
+      <canvas id="stackedChart" height="200"></canvas>
+      <div class="legend" style="margin-top:10px">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--v2)"></div>Effective cycles</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--v1)"></div>Wasted (V1 stales)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,229,160,0.4)"></div>Recovered (V2)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--hp)"></div>Hashprice</div>
+      </div>
+    </div>
+
+    <div class="card blue-top">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Chart 3 · Job Negotiation Scatter</div>
+          <div class="card-subtitle">Cycle Efficiency Frontier · Protocol vs Template Source</div>
+        </div>
+        <div class="card-badge" style="background:rgba(74,144,217,0.1);color:var(--neutral);border:1px solid rgba(74,144,217,0.25)">CHANNELS</div>
+      </div>
+      <canvas id="scatterChart" height="200"></canvas>
+      <div class="legend" style="margin-top:10px">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--v1)"></div>V1 · Pool Template</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--v2)"></div>V2 · Pool Template</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--hp)"></div>V2 + Job Negotiator</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--muted);border-top:1px dashed var(--muted);height:0"></div>Theoretical max</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ROW 3: Halving Strip full width -->
+  <div class="card gold-top" style="margin-top:16px">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Chart 4 · Halving-Aware Cycles-per-Sat Strip</div>
+        <div class="card-subtitle">Sats earned per 10¹² SHA-256 cycles · Pre vs Post V2 adoption bands</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <div class="card-badge badge-gold">SPAN: 18M</div>
+        <div class="card-badge badge-green">V2 BAND</div>
+      </div>
+    </div>
+    <canvas id="halvingChart" height="130"></canvas>
+    <div class="halving-annotations">
+      <div class="halving-tag">HALVING APR 2024 ▼ 3.125 BTC/block</div>
+      <div class="halving-tag highlight">V2 ADOPTION INFLECTION →</div>
+      <div class="halving-tag">POST-HALVING RECOVERY BAND</div>
+      <div class="halving-tag">CYCLE: next halving ~Apr 2028</div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ════════════════════════════════════════════
+// CONSTANTS & MINER MODELS
+// ════════════════════════════════════════════
+const MINERS = {
+  s21xp:  { label: 'S21 XP',    wth: 13.5, hashrateTH: 270 },
+  s21pro: { label: 'S21 Pro',   wth: 15.0, hashrateTH: 234 },
+  s21:    { label: 'S21',       wth: 17.5, hashrateTH: 200 },
+  s19xp:  { label: 'S19 XP',   wth: 21.5, hashrateTH: 141 },
+};
+
+// SHA-256² = 2 SHA256 rounds, ~64 rounds each, ~256-bit compression steps
+// Rough cycles-per-hash for ASIC: ~512 cycles per double-SHA256 (varies by impl)
+const CYCLES_PER_HASH = 512;
+
+const V1_REJECT = 0.0047; // 0.47% stale/reject baseline
+const V2_REJECT = 0.000151; // 0.0151% as per Luxor data
+
+let mode = 'both';
+let minerKey = 's21xp';
+let HP_USD = 0.0621;     // updated by live fetch
+let BTC_PRICE = 87420;   // updated by live fetch
+
+// ════════════════════════════════════════════
+// FREE API FETCH — same formula as main dashboard
+// ════════════════════════════════════════════
+const BLOCK_SUBSIDY = 3.125;
+
+async function fetchLiveHashprice() {
+  const [priceRes, diffRes, blocksRes] = await Promise.allSettled([
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { signal: AbortSignal.timeout(8000) }).then(r => r.json()),
+    fetch('https://blockchain.info/q/getdifficulty', { signal: AbortSignal.timeout(8000) }).then(r => r.text()),
+    fetch('https://mempool.space/api/blocks', { signal: AbortSignal.timeout(8000) }).then(r => r.json()),
+  ]);
+
+  const btcPrice   = priceRes.status  === 'fulfilled' ? (priceRes.value?.bitcoin?.usd  ?? BTC_PRICE)  : BTC_PRICE;
+  const difficulty = diffRes.status   === 'fulfilled' ? (parseFloat(diffRes.value) || 113.76e12)      : 113.76e12;
+  let   feeBTC     = 0;
+  if (blocksRes.status === 'fulfilled') {
+    const blks = blocksRes.value?.slice(0, 6) ?? [];
+    if (blks.length) feeBTC = blks.reduce((s, b) => s + (b?.extras?.totalFees ?? b?.fee ?? 0) / 1e8, 0) / blks.length;
+  }
+
+  const hp = (86400 * (BLOCK_SUBSIDY + feeBTC) * btcPrice * 1e12) / (difficulty * Math.pow(2, 32));
+
+  // Update globals so all chart functions pick up new values
+  HP_USD    = hp;
+  BTC_PRICE = btcPrice;
+
+  // Update stat bar hashprice display
+  document.getElementById('s-hp').textContent = '$' + hp.toFixed(5);
+
+  // Update status indicator if present
+  const badge = document.querySelector('.logo-eyebrow');
+  if (badge) badge.textContent = `SHA-256 Cycle Efficiency Analytics · Live · ${new Date().toLocaleTimeString()}`;
+
+  console.info('[CycleScope] Live fetch:', { btcPrice, difficulty: difficulty.toExponential(3), feeBTC: feeBTC.toFixed(5), hp: hp.toFixed(6) });
+  return hp;
+}
+
+// ════════════════════════════════════════════
+// DEMO DATA GENERATOR
+// ════════════════════════════════════════════
+function genHP(days) {
+  const pts = [];
+  let v = 0.055;
+  for (let i = days; i >= 0; i--) {
+    v += (Math.random() - 0.48) * 0.003;
+    v = Math.max(0.03, Math.min(0.12, v));
+    pts.push(parseFloat(v.toFixed(6)));
+  }
+  return pts;
+}
+
+const HP30 = genHP(30);
+const HP90 = genHP(90);
+const HP18M = genHP(548); // ~18 months
+
+// ════════════════════════════════════════════
+// CALCULATIONS
+// ════════════════════════════════════════════
+function calcMetrics(hp, miner) {
+  const m = MINERS[miner];
+  const hashrate = m.hashrateTH * 1e12; // hashes/s
+  const cyclesPerSec = hashrate * CYCLES_PER_HASH;
+  const effV1 = cyclesPerSec * (1 - V1_REJECT);
+  const effV2 = cyclesPerSec * (1 - V2_REJECT);
+  const wasted = cyclesPerSec * (V1_REJECT - V2_REJECT);
+  const gain = (V1_REJECT - V2_REJECT) / V1_REJECT;
+  const usdPer1e15 = hp / (m.hashrateTH * 1e3) / 24 / 3600 * 1e15;
+  const satsPer1e12 = (hp / BTC_PRICE) * 1e8 / (m.hashrateTH * 1e3) / 24 / 3600 * 1e12;
+  return { cyclesPerSec, effV1, effV2, wasted, gain, usdPer1e15, satsPer1e12 };
+}
+
+function fmtTH(v) {
+  const th = v / 1e12 / CYCLES_PER_HASH;
+  return th.toFixed(2) + ' TH/s equiv';
+}
+
+function recalc() {
+  minerKey = document.getElementById('minerModel').value;
+  const m = calcMetrics(HP_USD, minerKey);
+  document.getElementById('s-hp').textContent = '$' + HP_USD.toFixed(5);
+  document.getElementById('s-effcyc').textContent = fmtTH(m.effV2);
+  document.getElementById('s-waste').textContent = fmtTH(m.wasted);
+  document.getElementById('s-gain').textContent = '+' + (m.gain * 100).toFixed(3) + '%';
+  document.getElementById('s-cprice').textContent = '$' + m.usdPer1e15.toFixed(6);
+  document.getElementById('s-sats').textContent = Math.round(m.satsPer1e12) + ' sats';
+  buildEffMeters();
+  updateCharts();
+}
+
+// ════════════════════════════════════════════
+// CHART THEME
+// ════════════════════════════════════════════
+const CT = {
+  color: (a) => `rgba(${a})`,
+  tooltip: {
+    backgroundColor: '#0d1117',
+    borderColor: '#1c2535',
+    borderWidth: 1,
+    titleColor: '#ffe566',
+    bodyColor: '#cdd9e8',
+    titleFont: { family: 'IBM Plex Mono', size: 10, weight: '700' },
+    bodyFont: { family: 'IBM Plex Mono', size: 10 },
+    padding: 10,
+    callbacks: {}
+  },
+  xGrid: { color: 'rgba(28,37,53,0.8)', drawBorder: false },
+  yGrid: { color: 'rgba(28,37,53,0.8)', drawBorder: false },
+  xTicks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 }, maxTicksLimit: 8 },
+  yTicks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 9 } },
+};
+
+// ════════════════════════════════════════════
+// CHART 1: DUAL-AXIS TIMELINE
+// ════════════════════════════════════════════
+let timelineChart;
+function buildTimeline() {
+  const ctx = document.getElementById('timelineChart').getContext('2d');
+  const labels = HP30.map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (30 - i));
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+
+  const m = calcMetrics(HP_USD, minerKey);
+  const ratioV2 = (1 - V2_REJECT);
+  const ratioV1 = (1 - V1_REJECT);
+
+  const effV2arr = HP30.map(hp => {
+    const r = calcMetrics(hp, minerKey);
+    return +(r.effV2 / 1e12 / CYCLES_PER_HASH).toFixed(4);
+  });
+  const effV1arr = HP30.map(hp => {
+    const r = calcMetrics(hp, minerKey);
+    return +(r.effV1 / 1e12 / CYCLES_PER_HASH).toFixed(4);
+  });
+
+  const gradHP = ctx.createLinearGradient(0, 0, 0, 220);
+  gradHP.addColorStop(0, 'rgba(255,229,102,0.25)');
+  gradHP.addColorStop(1, 'rgba(255,229,102,0)');
+
+  timelineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Hashprice USD/TH/d',
+          data: HP30,
+          borderColor: '#ffe566',
+          backgroundColor: gradHP,
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.4,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Eff. Cycles TH/s (V2)',
+          data: mode !== 'v1' ? effV2arr : null,
+          borderColor: '#00e5a0',
+          fill: false,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.4,
+          yAxisID: 'y2',
+        },
+        {
+          label: 'Eff. Cycles TH/s (V1)',
+          data: mode !== 'v2' ? effV1arr : null,
+          borderColor: 'rgba(255,82,82,0.5)',
+          borderDash: [4, 3],
+          fill: false,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.4,
+          yAxisID: 'y2',
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...CT.tooltip,
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              if (ctx.datasetIndex === 0) return ` HP: $${v.toFixed(5)}`;
+              return ` ${ctx.dataset.label.includes('V2') ? 'V2' : 'V1'}: ${v.toFixed(2)} TH/s`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: CT.xGrid, ticks: CT.xTicks },
+        y: {
+          grid: CT.yGrid,
+          ticks: { ...CT.yTicks, callback: v => '$' + v.toFixed(4) },
+          position: 'left',
+        },
+        y2: {
+          grid: { display: false },
+          ticks: { color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 }, callback: v => v.toFixed(1) + 'T' },
+          position: 'right',
+        }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// CHART 2: STACKED BAR (WASTED CYCLES)
+// ════════════════════════════════════════════
+let stackedChart;
+function buildStacked() {
+  const ctx = document.getElementById('stackedChart').getContext('2d');
+  const n = 14;
+  const labels = Array.from({length: n}, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (n - 1 - i) * 2);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+
+  const hpSlice = HP30.filter((_, i) => i % 2 === 0).slice(0, n);
+  const miner = MINERS[minerKey];
+  const totalCycles = miner.hashrateTH;
+
+  const effective = hpSlice.map(() => +(totalCycles * (1 - V2_REJECT)).toFixed(3));
+  const wastedV1  = hpSlice.map(() => +(totalCycles * (V1_REJECT - V2_REJECT)).toFixed(3));
+  const wastedBase= hpSlice.map(() => +(totalCycles * V2_REJECT).toFixed(4));
+
+  stackedChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Effective (V2)',
+          data: effective,
+          backgroundColor: 'rgba(0,229,160,0.55)',
+          stack: 'cycles',
+          borderRadius: 2,
+          borderSkipped: false,
+        },
+        {
+          label: 'Recovered by V2',
+          data: wastedV1,
+          backgroundColor: 'rgba(0,229,160,0.2)',
+          stack: 'cycles',
+          borderRadius: 0,
+        },
+        {
+          label: 'Wasted (unavoidable)',
+          data: wastedBase,
+          backgroundColor: 'rgba(255,82,82,0.45)',
+          stack: 'cycles',
+          borderRadius: 0,
+        },
+        {
+          label: 'Hashprice',
+          data: hpSlice,
+          type: 'line',
+          borderColor: '#ffe566',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#ffe566',
+          fill: false,
+          tension: 0.4,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { ...CT.tooltip }
+      },
+      scales: {
+        x: { grid: CT.xGrid, ticks: CT.xTicks, stacked: true },
+        y: {
+          grid: CT.yGrid,
+          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) + 'T' },
+          stacked: true,
+        },
+        y2: {
+          position: 'right',
+          grid: { display: false },
+          ticks: { color: '#ffe566', font: { family: 'IBM Plex Mono', size: 8 }, callback: v => '$'+v.toFixed(4) }
+        }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// CHART 3: SCATTER — CYCLE EFFICIENCY FRONTIER
+// ════════════════════════════════════════════
+let scatterChart;
+function buildScatter() {
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  const miner = MINERS[minerKey];
+  const maxCycles = miner.hashrateTH;
+
+  // Generate synthetic channel data
+  function genPoints(n, rejectMean, rejectStd, hpMult, color) {
+    return Array.from({length: n}, () => {
+      const r = Math.max(0, rejectMean + (Math.random() - 0.5) * rejectStd);
+      const cycles = maxCycles * (Math.random() * 0.1 + 0.92);
+      const effCycles = cycles * (1 - r);
+      const rev = HP_USD * effCycles / maxCycles * hpMult * (0.9 + Math.random() * 0.2);
+      return { x: +effCycles.toFixed(2), y: +rev.toFixed(6) };
+    });
+  }
+
+  const v1Pool   = genPoints(18, V1_REJECT,    0.002, 1.0, '#ff5252');
+  const v2Pool   = genPoints(18, V2_REJECT,    0.0001, 1.0, '#00e5a0');
+  const v2JN     = genPoints(12, V2_REJECT*0.7, 0.00008, 1.01, '#ffe566');
+
+  // Theoretical max line
+  const maxLine = [
+    { x: maxCycles * 0.88, y: HP_USD * 0.88 },
+    { x: maxCycles * 1.01, y: HP_USD * 1.01 },
+  ];
+
+  scatterChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'V1 · Pool Template', data: v1Pool, backgroundColor: 'rgba(255,82,82,0.6)', pointRadius: 5, pointHoverRadius: 7 },
+        { label: 'V2 · Pool Template', data: v2Pool, backgroundColor: 'rgba(0,229,160,0.65)', pointRadius: 5, pointHoverRadius: 7 },
+        { label: 'V2 + Job Negotiator', data: v2JN, backgroundColor: 'rgba(255,229,102,0.8)', pointRadius: 6, pointHoverRadius: 8, pointStyle: 'triangle' },
+        { label: 'Theoretical Max', data: maxLine, type: 'line', borderColor: 'rgba(74,96,128,0.6)', borderDash: [6,4], pointRadius: 0, fill: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...CT.tooltip,
+          callbacks: {
+            label: (ctx) => {
+              if (!ctx.parsed) return '';
+              return [
+                ` Protocol: ${ctx.dataset.label}`,
+                ` Eff. Cycles: ${ctx.parsed.x.toFixed(1)} TH`,
+                ` Revenue: $${ctx.parsed.y.toFixed(5)}/TH/d`,
+              ];
+            },
+            title: () => 'Channel Data Point'
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: CT.xGrid,
+          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) + 'T' },
+          title: { display: true, text: 'Effective Cycles (TH equiv)', color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 } }
+        },
+        y: {
+          grid: CT.yGrid,
+          ticks: { ...CT.yTicks, callback: v => '$'+v.toFixed(5) },
+          title: { display: true, text: 'Effective Rev USD/TH/d', color: '#4a6080', font: { family: 'IBM Plex Mono', size: 8 } }
+        }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// CHART 4: HALVING STRIP
+// ════════════════════════════════════════════
+let halvingChart;
+function buildHalving() {
+  const ctx = document.getElementById('halvingChart').getContext('2d');
+  const miner = MINERS[minerKey];
+  const n = HP18M.length;
+  const labels = HP18M.map((_, i) => {
+    const d = new Date('2023-10-01');
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+
+  // Halving happened around day 185 (April 2024)
+  const halvingIdx = 185;
+  const v2AdoptIdx = 280;
+
+  const satsV1 = HP18M.map((hp, i) => {
+    const btcP = 40000 + i * 87; // rough BTC price growth
+    const sats = (hp / btcP) * 1e8 / (miner.hashrateTH * 1e3) / 86400 * 1e12 * (1 - V1_REJECT);
+    return +sats.toFixed(1);
+  });
+  const satsV2 = HP18M.map((hp, i) => {
+    const btcP = 40000 + i * 87;
+    const sats = (hp / btcP) * 1e8 / (miner.hashrateTH * 1e3) / 86400 * 1e12 * (1 - V2_REJECT);
+    return +sats.toFixed(1);
+  });
+
+  // Band: min/max of V2 rolling ±5 days
+  const v2Upper = satsV2.map((v, i) => v * 1.04);
+  const v2Lower = satsV2.map((v, i) => v * 0.96);
+
+  halvingChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'V2 Upper Band',
+          data: v2Upper,
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(0,229,160,0.12)',
+          fill: '+1',
+          pointRadius: 0,
+          tension: 0.4,
+        },
+        {
+          label: 'V2 Lower Band',
+          data: v2Lower,
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(0,229,160,0)',
+          fill: false,
+          pointRadius: 0,
+          tension: 0.4,
+        },
+        {
+          label: 'Sats/10¹² Cycles (V2)',
+          data: satsV2,
+          borderColor: '#00e5a0',
+          borderWidth: 2,
+          fill: false,
+          pointRadius: 0,
+          tension: 0.4,
+        },
+        {
+          label: 'Sats/10¹² Cycles (V1)',
+          data: satsV1,
+          borderColor: 'rgba(255,82,82,0.55)',
+          borderDash: [4,3],
+          borderWidth: 1.5,
+          fill: false,
+          pointRadius: 0,
+          tension: 0.4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...CT.tooltip,
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v.toFixed(1)} sats`;
+            }
+          }
+        },
+        annotation: {}
+      },
+      scales: {
+        x: {
+          grid: CT.xGrid,
+          ticks: { ...CT.xTicks, maxTicksLimit: 12 },
+        },
+        y: {
+          grid: CT.yGrid,
+          ticks: { ...CT.yTicks, callback: v => v.toFixed(0) },
+        }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// EFFICIENCY METERS
+// ════════════════════════════════════════════
+function buildEffMeters() {
+  const container = document.getElementById('effMeters');
+  container.innerHTML = '';
+
+  const miner = MINERS[minerKey];
+  const total = miner.hashrateTH;
+
+  const configs = [
+    { label: 'V1 Base',    eff: 1 - V1_REJECT,  color: 'var(--v1)',      pct: (1 - V1_REJECT) * 100 },
+    { label: 'V2 Pool',    eff: 1 - V2_REJECT,  color: 'var(--v2)',      pct: (1 - V2_REJECT) * 100 },
+    { label: 'V2 + JN',    eff: 1 - V2_REJECT * 0.7, color: 'var(--hp)', pct: (1 - V2_REJECT * 0.7) * 100 },
+    { label: 'Theoretical',eff: 1.0,             color: 'var(--neutral)', pct: 100 },
+  ];
+
+  configs.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'eff-row';
+    d.innerHTML = `
+      <div class="eff-label">${c.label}</div>
+      <div class="eff-bar-bg">
+        <div class="eff-bar-fill" style="width:${c.pct.toFixed(3)}%;background:${c.color}"></div>
+      </div>
+      <div class="eff-val" style="color:${c.color}">${c.pct.toFixed(3)}%</div>
+    `;
+    container.appendChild(d);
+  });
+
+  // Gain annotation
+  const gain = ((V1_REJECT - V2_REJECT) / V1_REJECT * 100);
+  const note = document.createElement('div');
+  note.style.cssText = 'font-size:10px;color:var(--v2);margin-top:12px;padding:8px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:4px;line-height:1.6';
+  note.innerHTML = `V2 recovers <strong style="color:var(--v2)">${gain.toFixed(2)}%</strong> of wasted cycles vs V1.<br>
+    @ ${miner.label} (${miner.hashrateTH} TH/s): <strong style="color:var(--hp)">${(miner.hashrateTH * gain / 100).toFixed(2)} TH/s</strong> freed.`;
+  container.appendChild(note);
+}
+
+// ════════════════════════════════════════════
+// MODE TOGGLE
+// ════════════════════════════════════════════
+function setMode(m, btn) {
+  mode = m;
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateCharts();
+}
+
+function updateCharts() {
+  if (timelineChart) timelineChart.destroy();
+  if (stackedChart) stackedChart.destroy();
+  if (scatterChart) scatterChart.destroy();
+  if (halvingChart) halvingChart.destroy();
+  buildTimeline();
+  buildStacked();
+  buildScatter();
+  buildHalving();
+}
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  // Render immediately with seed values
+  recalc();
+  buildTimeline();
+  buildStacked();
+  buildScatter();
+  buildHalving();
+
+  // Fetch live data, then redraw everything with real hashprice
+  try {
+    await fetchLiveHashprice();
+    recalc();
+    updateCharts();
+  } catch (e) {
+    console.warn('[CycleScope] Live fetch failed, staying on seed values:', e.message);
+  }
+
+  // Refresh every 90s
+  setInterval(async () => {
+    try { await fetchLiveHashprice(); recalc(); updateCharts(); } catch {}
+  }, 90_000);
+});
+</script>
+</body>
+</html>
