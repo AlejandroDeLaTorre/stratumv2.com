@@ -1,3 +1,5 @@
+import { neon } from '@neondatabase/serverless';
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -5,7 +7,6 @@ export default async function handler(req) {
   const days = Math.min(365, Math.max(1, parseInt(searchParams.get('days') ?? '30')));
 
   try {
-    const { neon } = await import('https://esm.sh/@neondatabase/serverless@0.10.4');
     const sql = neon(process.env.DATABASE_URL);
 
     const rows = await sql`
@@ -27,7 +28,6 @@ export default async function handler(req) {
       },
     });
   } catch (e) {
-    // Table doesn't exist yet or other error — return empty gracefully
     return new Response(JSON.stringify({ rows: [], days, note: e.message }), {
       headers: { 'Content-Type': 'application/json' },
     });
