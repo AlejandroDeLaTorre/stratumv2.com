@@ -1,3 +1,5 @@
+import { neon } from '@neondatabase/serverless';
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -11,8 +13,6 @@ export default async function handler(req) {
     const base = new URL(req.url).origin;
     const hp = await fetch(`${base}/api/hashprice`).then(r => r.json());
 
-    // Neon serverless driver via ESM CDN - works natively in Edge runtime
-    const { neon } = await import('https://esm.sh/@neondatabase/serverless@0.10.4');
     const sql = neon(process.env.DATABASE_URL);
 
     // Ensure table exists
