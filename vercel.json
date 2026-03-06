@@ -1,5 +1,8 @@
 {
   "rewrites": [
     { "source": "/stratum", "destination": "/stratum-v2-cycles.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron", "schedule": "0 12 * * *" }
   ]
 }
