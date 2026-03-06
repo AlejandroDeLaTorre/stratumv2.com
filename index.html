@@ -98,7 +98,7 @@ select.ctrl-select {
 .leg-line { width: 20px; height: 2px; border-radius: 1px; flex-shrink: 0; }
 
 /* BREAK-EVEN GRID */
-.be-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 4px; }
+.be-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 4px; }
 .be-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color 0.2s; }
 .be-card:hover { border-color: var(--border2); }
 .be-miner { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
@@ -280,12 +280,22 @@ function readRejectRates() {
 const BLOCK_SUBSIDY = 3.125;
 
 const MINERS = [
-  { name: 'Antminer S21 XP',   wth: 13.5, hashTH: 270 },
-  { name: 'Antminer S21 Pro',  wth: 15.0, hashTH: 234 },
-  { name: 'Antminer S21',      wth: 17.5, hashTH: 200 },
-  { name: 'Antminer S19 XP',   wth: 21.5, hashTH: 141 },
-  { name: 'Antminer S19j Pro', wth: 29.5, hashTH: 104 },
-  { name: 'Whatsminer M60S',   wth: 18.5, hashTH: 186 },
+  // Bitmain Antminer — Hydro
+  { name: 'S21 XP+ Hyd',      wth: 11.0, hashTH: 500,  cooling: 'Hydro',     make: 'Bitmain'  },
+  { name: 'S21 XP Hyd',       wth: 12.0, hashTH: 473,  cooling: 'Hydro',     make: 'Bitmain'  },
+  { name: 'S21e XP Hyd 3U',   wth: 13.0, hashTH: 860,  cooling: 'Hydro',     make: 'Bitmain'  },
+  { name: 'S21 Hydro',        wth: 16.0, hashTH: 335,  cooling: 'Hydro',     make: 'Bitmain'  },
+  // Bitmain Antminer — Air
+  { name: 'S21 XP',           wth: 13.5, hashTH: 270,  cooling: 'Air',       make: 'Bitmain'  },
+  { name: 'S21 Pro',          wth: 15.0, hashTH: 234,  cooling: 'Air',       make: 'Bitmain'  },
+  { name: 'S19j Pro',         wth: 29.5, hashTH: 104,  cooling: 'Air',       make: 'Bitmain'  },
+  // Bitdeer SealMiner
+  { name: 'SealMiner A2 Pro Hyd', wth: 14.9, hashTH: 500, cooling: 'Hydro',  make: 'Bitdeer'  },
+  { name: 'SealMiner A2 Pro Air', wth: 14.9, hashTH: 265, cooling: 'Air',    make: 'Bitdeer'  },
+  // MicroBT Whatsminer — Immersion/Hydro
+  { name: 'M66S++',           wth: 15.5, hashTH: 348,  cooling: 'Immersion', make: 'MicroBT'  },
+  { name: 'M66S+',            wth: 17.0, hashTH: 318,  cooling: 'Immersion', make: 'MicroBT'  },
+  { name: 'M63S Hydro',       wth: 18.5, hashTH: 390,  cooling: 'Hydro',     make: 'MicroBT'  },
 ];
 
 // ══ STATE ══════════════════════════════════════════════
@@ -527,9 +537,16 @@ function buildChart3() {
         : `✗ UNPROFITABLE · needs <$${breakEvenPwr.toFixed(3)}/kWh`;
     const statusColor = v2Lifts ? 'var(--hp)' : profitable ? 'var(--v2)' : 'var(--v1)';
 
+    const coolingColor = m.cooling === 'Hydro' ? '#29b6f6' : m.cooling === 'Immersion' ? '#ab47bc' : 'var(--muted)';
     grid.innerHTML += `
       <div class="be-card">
-        <div class="be-miner">${m.name}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div class="be-miner" style="margin-bottom:0">${m.name}</div>
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <span style="font-size:7px;font-weight:700;letter-spacing:1px;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:var(--muted)">${m.make}</span>
+            <span style="font-size:7px;font-weight:700;letter-spacing:1px;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,0.07);color:${coolingColor}">${m.cooling}</span>
+          </div>
+        </div>
         <div class="be-row"><span class="be-key">Efficiency</span><span class="be-val">${m.wth} W/TH</span></div>
         <div class="be-row"><span class="be-key">Rev / TH / day</span><span class="be-val gold">$${rev.toFixed(6)}</span></div>
         <div class="be-row"><span class="be-key">Power cost / TH</span><span class="be-val">$${powerPerTH.toFixed(6)}</span></div>
