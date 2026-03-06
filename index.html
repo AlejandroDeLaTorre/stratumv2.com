@@ -295,7 +295,8 @@ let c1HP          = 100;  // PH/s
 let c2HP          = 100;  // PH/s
 let currentSpan   = '7d';
 let chart1, chart2;
-let histories     = {};
+let histories      = {};
+let historiesLabels = {};
 
 // ══ HELPERS ════════════════════════════════════════════
 function fmtUSD(v) {
@@ -336,6 +337,39 @@ function seedHistories() {
   histories['90d'] = genHistory(90, HP_USD);
 }
 
+// Fetch real historical data from Neon via /api/history
+// Rows: { hour, price_usd, price_btc, btc_price }
+async function fetchHistory() {
+  try {
+    const res = await fetch('/api/history?days=90');
+    if (!res.ok) return false;
+    const { rows } = await res.json();
+    if (!rows || rows.length < 2) return false;
+
+    // Map rows to arrays indexed by span
+    const now = Date.now();
+    const cutoffs = { '7d': 7, '30d': 30, '90d': 90 };
+
+    for (const [span, days] of Object.entries(cutoffs)) {
+      const cutoff = now - days * 86400_000;
+      const filtered = rows.filter(r => new Date(r.hour).getTime() >= cutoff);
+      if (filtered.length >= 2) {
+        histories[span] = filtered.map(r => parseFloat(r.price_usd));
+        // Store labels separately for real data
+        historiesLabels[span] = filtered.map(r => {
+          const d = new Date(r.hour);
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+      }
+    }
+    console.info(`[stratumv2.com] Loaded ${rows.length} historical snapshots`);
+    return true;
+  } catch (e) {
+    console.warn('[stratumv2.com] History fetch failed:', e.message);
+    return false;
+  }
+}
+
 // ══ CHART THEME ════════════════════════════════════════
 const TT = {
   backgroundColor: '#0d1117', borderColor: '#243040', borderWidth: 1,
@@ -353,7 +387,8 @@ function buildChart1() {
   if (chart1) { chart1.destroy(); chart1 = null; }
   const ctx  = document.getElementById('chart1').getContext('2d');
   const days = currentSpan === '7d' ? 7 : currentSpan === '30d' ? 30 : 90;
-  const hp   = histories[currentSpan] || genHistory(days, HP_USD);
+  const hp     = histories[currentSpan] || genHistory(days, HP_USD);
+  const labels = historiesLabels[currentSpan] || makeLabels(days);
 
   const v1Cost = hp.map(h => staleCost(c1HP, h, V1_REJECT));
   const v2Cost = hp.map(h => staleCost(c1HP, h, V2_REJECT));
@@ -365,7 +400,7 @@ function buildChart1() {
   chart1 = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: makeLabels(days),
+      labels,
       datasets: [
         { label: 'Hashprice', data: hp, borderColor: '#ffe566', backgroundColor: gradHP, fill: true, borderWidth: 2, pointRadius: 0, tension: 0.4, yAxisID: 'yHP' },
         { label: 'V1 daily stale cost', data: v1Cost, borderColor: '#ff5252', fill: false, borderWidth: 2, pointRadius: 0, tension: 0.4, yAxisID: 'yCost' },
@@ -536,13 +571,18 @@ function rebuildAll() {
 // ══ INIT ═══════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   readRejectRates();
-  seedHistories();
+  seedHistories();       // seed with random data as placeholder
   buildChart1();
   buildChart2();
   buildChart3();
-  const ok = await fetchLive();
-  if (ok) rebuildAll();
+
+  // Fetch live hashprice + real history in parallel
+  const [liveOk, histOk] = await Promise.all([fetchLive(), fetchHistory()]);
+  if (liveOk || histOk) rebuildAll();
+
+  // Refresh live data every 90s, history every 30min
   setInterval(async () => { const ok = await fetchLive(); if (ok) rebuildAll(); }, 90_000);
+  setInterval(async () => { await fetchHistory(); buildChart1(); }, 30 * 60_000);
 });
 </script>
 </body>
