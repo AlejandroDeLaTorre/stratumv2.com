@@ -1,14 +1,13 @@
 export const config = { runtime: 'edge' };
 
-const BOT_TOKEN  = process.env.TELEGRAM_BOT_TOKEN;
-const CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID;
+const BOT_TOKEN   = process.env.TELEGRAM_BOT_TOKEN;
+const CHANNEL_ID  = process.env.TELEGRAM_CHANNEL_ID;
 const CRON_SECRET = process.env.CRON_SECRET;
 
 const V1_REJECT = 0.0047;
 const V2_REJECT = 0.000151;
 
 function esc(str) {
-  // Escape special chars for Telegram MarkdownV2
   return String(str).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
 }
 
@@ -24,17 +23,33 @@ function profitabilityLine(name, wth, hp, powerCost) {
   const margin = rev * (1 - V2_REJECT) - pwr;
   const pct    = ((margin / rev) * 100).toFixed(1);
   if (margin > 0) return `✅ ${name}: \\+${esc(pct)}% margin`;
-  return `❌ ${name}: unprofitable at \\$${esc(powerCost)}/kWh`;
+  return `❌ ${name}: unprofitable at \\$${esc(String(powerCost))}/kWh`;
 }
 
+const MINERS = [
+  // Bitmain Hydro
+  { name: 'S21 XP\\+ Hyd',        wth: 11.0 },
+  { name: 'S21 XP Hyd',           wth: 12.0 },
+  { name: 'S21 Hydro',            wth: 16.0 },
+  // Bitmain Air
+  { name: 'S21 XP',               wth: 13.5 },
+  { name: 'S21 Pro',              wth: 15.0 },
+  { name: 'S19j Pro',             wth: 29.5 },
+  // Bitdeer SealMiner
+  { name: 'SealMiner A2 Pro Hyd', wth: 14.9 },
+  { name: 'SealMiner A2 Pro Air', wth: 14.9 },
+  // MicroBT
+  { name: 'M66S\\+\\+',           wth: 15.5 },
+  { name: 'M66S\\+',              wth: 17.0 },
+  { name: 'M63S Hydro',           wth: 18.5 },
+];
+
 export default async function handler(req) {
-  // Verify this is a legitimate cron call
   const auth = req.headers.get('authorization');
   if (CRON_SECRET && auth !== `Bearer ${CRON_SECRET}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // Fetch live hashprice from our own proxy
   let hp;
   try {
     const res = await fetch('https://stratumv2.com/api/hashprice');
@@ -44,22 +59,13 @@ export default async function handler(req) {
     return new Response(`Failed to fetch hashprice: ${e.message}`, { status: 500 });
   }
 
-  const PH       = 100;
-  const POWER    = 0.05;
-  const v1Cost   = hp.priceUSD * V1_REJECT * PH * 1000;
-  const v2Cost   = hp.priceUSD * V2_REJECT * PH * 1000;
-  const saving   = v1Cost - v2Cost;
-  const monthly  = saving * 30;
-  const yearly   = saving * 365;
-
-  const MINERS = [
-    { name: 'S21 XP',    wth: 13.5 },
-    { name: 'S21 Pro',   wth: 15.0 },
-    { name: 'S21',       wth: 17.5 },
-    { name: 'S19 XP',    wth: 21.5 },
-    { name: 'S19j Pro',  wth: 29.5 },
-    { name: 'M60S',      wth: 18.5 },
-  ];
+  const PH      = 100;
+  const POWER   = 0.05;
+  const v1Cost  = hp.priceUSD * V1_REJECT * PH * 1000;
+  const v2Cost  = hp.priceUSD * V2_REJECT * PH * 1000;
+  const saving  = v1Cost - v2Cost;
+  const monthly = saving * 30;
+  const yearly  = saving * 365;
 
   const profitLines = MINERS
     .map(m => profitabilityLine(m.name, m.wth, hp.priceUSD, POWER))
@@ -100,9 +106,7 @@ export default async function handler(req) {
   );
 
   const tgJson = await tgRes.json();
-
   if (!tgJson.ok) {
-    console.error('Telegram error:', JSON.stringify(tgJson));
     return new Response(`Telegram error: ${JSON.stringify(tgJson)}`, { status: 500 });
   }
 
