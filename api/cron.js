@@ -7,10 +7,6 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const V1_REJECT = 0.0047;
 const V2_REJECT = 0.000151;
 
-function esc(str) {
-  return String(str).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
-}
-
 function fmtUSD(v) {
   const abs = Math.abs(v);
   const sign = v >= 0 ? '' : '-';
@@ -22,9 +18,9 @@ function fmtUSD(v) {
 function minerLine(name, wth, hashTH, hp, powerCost) {
   const netPerTH      = hp * (1 - V2_REJECT) - (wth / 1000 * 24 * powerCost);
   const netPerMachine = netPerTH * hashTH;
-  const v2Extra       = (V1_REJECT - V2_REJECT) * hp * hashTH; // extra earned vs V1
+  const v2Extra       = (V1_REJECT - V2_REJECT) * hp * hashTH;
   const status        = netPerMachine > 0 ? '✅' : '❌';
-  return `${status} ${esc(name)} \\(${hashTH}T\\): ${esc(fmtUSD(netPerMachine))}/day  💚 \\+${esc(fmtUSD(v2Extra))} vs V1`;
+  return `${status} <b>${name}</b> (${hashTH}T): ${fmtUSD(netPerMachine)}/day  💚 +${fmtUSD(v2Extra)} vs V1`;
 }
 
 const MINERS = [
@@ -57,7 +53,7 @@ export default async function handler(req) {
   }
 
   const POWER     = 0.05;
-  const hpPerPH   = hp.priceUSD * 1000;   // $/PH/day
+  const hpPerPH   = hp.priceUSD * 1000;
   const v1Cost100 = hp.priceUSD * V1_REJECT * 100 * 1000;
   const v2Cost100 = hp.priceUSD * V2_REJECT * 100 * 1000;
   const saving    = v1Cost100 - v2Cost100;
@@ -71,22 +67,22 @@ export default async function handler(req) {
   const now = new Date().toUTCString().replace(/:\d{2} GMT/, ' UTC');
 
   const msg = [
-    `⛏ *HASHPRICE UPDATE* — ${esc(now)}`,
+    `⛏ <b>HASHPRICE UPDATE</b> — ${now}`,
     ``,
-    `💰 *${esc('$' + hp.priceUSD.toFixed(6))}* / TH / day`,
-    `💰 *${esc('$' + hpPerPH.toFixed(4))}* / PH / day`,
-    `₿ ${esc(hp.priceBTC.toFixed(10))} BTC / TH / day`,
-    `📊 BTC: *${esc('$' + hp.btcPrice.toLocaleString())}*`,
+    `💰 <b>$${hp.priceUSD.toFixed(6)}</b> / TH / day`,
+    `💰 <b>$${hpPerPH.toFixed(4)}</b> / PH / day`,
+    `₿ ${hp.priceBTC.toFixed(10)} BTC / TH / day`,
+    `📊 BTC: <b>$${hp.btcPrice.toLocaleString()}</b>`,
     ``,
-    `*V1 vs V2 @ 100 PH/s \\(\\$0\\.05/kWh\\)*`,
-    `  V1 stale cost: ${esc(fmtUSD(v1Cost100))}/day`,
-    `  V2 stale cost: ${esc(fmtUSD(v2Cost100))}/day`,
-    `  💚 V2 saves: *${esc(fmtUSD(saving))}/day · ${esc(fmtUSD(monthly))}/mo · ${esc(fmtUSD(yearly))}/yr*`,
+    `<b>V1 vs V2 @ 100 PH/s ($0.05/kWh)</b>`,
+    `  V1 stale cost: ${fmtUSD(v1Cost100)}/day`,
+    `  V2 stale cost: ${fmtUSD(v2Cost100)}/day`,
+    `  💚 V2 saves: <b>${fmtUSD(saving)}/day · ${fmtUSD(monthly)}/mo · ${fmtUSD(yearly)}/yr</b>`,
     ``,
-    `*Per Machine @ \\$0\\.05/kWh — net profit + V2 upside*`,
+    `<b>Per Machine @ $0.05/kWh — net profit + V2 upside</b>`,
     minerLines,
     ``,
-    `📈 [stratumv2\.com](https://stratumv2.com)`,
+    `📈 <a href="https://stratumv2.com">stratumv2.com</a>`,
   ].join('\n');
 
   const tgRes = await fetch(
@@ -97,7 +93,7 @@ export default async function handler(req) {
       body: JSON.stringify({
         chat_id: CHANNEL_ID,
         text: msg,
-        parse_mode: 'MarkdownV2',
+        parse_mode: 'HTML',
         disable_web_page_preview: false,
       }),
     }
