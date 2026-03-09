@@ -766,5 +766,29 @@ window.addEventListener('DOMContentLoaded', async () => {
   setInterval(async () => { const ok = await fetchHistory(); if (ok) rebuildAll(); }, 30 * 60_000);
 });
 </script>
+
+  <!-- FOOTER -->
+  <div style="margin-top:48px;padding-top:28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div>
+      <div style="font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Ready to switch?</div>
+      <a href="https://dmnd.work" target="_blank" style="text-decoration:none;display:inline-flex;align-items:center;gap:10px">
+        <span style="font-family:var(--display);font-size:28px;color:var(--text);letter-spacing:1px">dmnd.work</span>
+        <span style="font-size:10px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:4px;background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0">STRATUM V2 POOL</span>
+      </a>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">A Bitcoin mining pool built on Stratum V2 from the ground up — lower stales, more revenue, open source.</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px">DATA SOURCES</div>
+      <div style="font-size:9px;color:var(--muted);line-height:1.8">CoinGecko · Coinbase · mempool.space · blockchain.info</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:8px">
+        <a href="https://github.com/AlejandroDeLaTorre/stratumv2.com" target="_blank" style="color:var(--muted);text-decoration:none;letter-spacing:1px">Open Source</a>
+        &nbsp;·&nbsp;
+        <a href="https://t.me/sv2profitability" target="_blank" style="color:var(--muted);text-decoration:none;letter-spacing:1px">Telegram</a>
+        &nbsp;·&nbsp;
+        <span style="letter-spacing:1px">stratumv2.com</span>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
