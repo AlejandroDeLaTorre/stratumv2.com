@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stratum V2 — Does it save you money?</title>
+<meta name="description" content="Live Bitcoin mining analytics. See exactly how much revenue you lose to stale shares on V1 pools vs Stratum V2, per miner model, per day.">
+<meta property="og:title" content="Stratum V2 — Does it save you money?">
+<meta property="og:description" content="Live hashprice, V1 vs V2 stale cost calculator, and per-machine profitability for every major ASIC. Real data, updated every 6 hours.">
+<meta property="og:url" content="https://stratumv2.com">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="StratumV2.com">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Stratum V2 — Does it save you money?">
+<meta name="twitter:description" content="Live hashprice, V1 vs V2 stale cost calculator, and per-machine profitability for every major ASIC.">
+<meta name="twitter:site" content="@stratumv2">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -121,10 +131,6 @@ select.ctrl-select {
 @media (max-width: 900px) { .stat-bar { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 600px) { .stat-bar { grid-template-columns: repeat(2, 1fr); } .logo-title { font-size: 32px; } }
 </style>
-<script>
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -592,7 +598,8 @@ async function fetchLive() {
 }
 
 function rebuildAll() {
-  seedHistories();
+  // Only reseed with random data if we don't have real history yet
+  if (!historiesLabels['90d']) seedHistories();
   buildChart1();
   buildChart2();
   buildChart3();
@@ -654,12 +661,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Refresh live data every 90s, history every 30min
   setInterval(async () => { const ok = await fetchLive(); if (ok) rebuildAll(); }, 90_000);
-  setInterval(async () => { await fetchHistory(); buildChart1(); }, 30 * 60_000);
+  setInterval(async () => { const ok = await fetchHistory(); if (ok) rebuildAll(); }, 30 * 60_000);
 });
 </script>
-<script>
-  window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>
