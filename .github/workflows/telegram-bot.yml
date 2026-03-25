@@ -2,8 +2,8 @@ name: Telegram Hashprice Bot
 
 on:
   schedule:
-    - cron: '0 */6 * * *'    # snapshot every 6 hours (keeps database growing)
-    - cron: '0 9 * * 1'      # weekly recap every Monday 09:00 UTC
+    - cron: '0 */6 * * *'   # snapshot every 6 hours
+    - cron: '0 9 * * 1'     # weekly recap every Monday 09:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -15,16 +15,16 @@ jobs:
           curl -s -X GET https://stratumv2.com/api/snapshot \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
-      - name: Check for difficulty adjustment and alert
+      - name: Check for difficulty adjustment
         run: |
           curl -s -X GET https://stratumv2.com/api/difficulty-alert \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
 
   weekly-recap:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.schedule, '0 9')
+    needs: snapshot
     steps:
       - name: Post weekly recap to Telegram
         run: |
-          curl -s -X GET https://stratumv2.com/api/cron \
+          curl -s -f -X GET https://stratumv2.com/api/cron \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
