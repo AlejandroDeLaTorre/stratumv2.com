@@ -2,8 +2,8 @@ name: Telegram Hashprice Bot
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # snapshot every 6 hours
-    - cron: '0 9 * * 1'     # weekly recap every Monday 09:00 UTC
+    - cron: '0 */6 * * *'   # snapshot every 6 hours — silent
+    - cron: '0 9 * * 1'     # weekly recap — Monday 09:00 UTC only
   workflow_dispatch:
 
 jobs:
@@ -23,6 +23,7 @@ jobs:
   weekly-recap:
     runs-on: ubuntu-latest
     needs: snapshot
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 9 * * 1'
     steps:
       - name: Post weekly recap to Telegram
         run: |
