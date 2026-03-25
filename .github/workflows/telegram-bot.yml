@@ -26,5 +26,5 @@ jobs:
     steps:
       - name: Post weekly recap to Telegram
         run: |
-          curl -s -f -X GET https://stratumv2.com/api/cron \
+          curl -s -X GET https://stratumv2.com/api/cron \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
