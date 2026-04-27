@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/stratum", "destination": "/stratum-v2-cycles.html" },
-    { "source": "/api-docs", "destination": "/api-docs.html" }
+    { "source": "/stratum",   "destination": "/stratum-v2-cycles.html" },
+    { "source": "/api-docs",  "destination": "/api-docs.html" },
+    { "source": "/jd-blocks", "destination": "/jd-blocks.html" }
   ]
 }
