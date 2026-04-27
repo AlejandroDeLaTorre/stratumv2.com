@@ -25,8 +25,12 @@ jobs:
         run: |
           curl -s -X GET https://stratumv2.com/api/difficulty-alert \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+<<<<<<< HEAD
 
       - name: Scan recent blocks for DMND JD activity
+=======
+            - name: Scan recent blocks for DMND JD activity
+>>>>>>> 2b99b1b (fix: convert scripts to ESM, add pg dependency)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: node scripts/scan-jd-blocks.js

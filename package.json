@@ -1,6 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4"
+    "@neondatabase/serverless": "^0.10.4",
+    "pg": "^8.20.0"
   }
 }
