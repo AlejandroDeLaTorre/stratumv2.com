@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DMND JD Blocks · stratumv2.com</title>
+  <link rel="preconnect" href="https://mempool.space" />
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --panel: #11141a;
+      --panel-2: #161a22;
+      --border: #1f2530;
+      --text: #e6ecf3;
+      --muted: #8a94a6;
+      --accent: #0f52ba;       /* DMND blue */
+      --accent-soft: #1f3d7a;
+      --jd: #46c08e;           /* JD = green */
+      --nonjd: #c0a046;        /* non-JD = amber */
+      --danger: #e0573a;
+      --mono: ui-monospace, "IBM Plex Mono", "JetBrains Mono", Menlo, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+    h1 .pool { color: var(--accent); }
+    .sub { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); }
+    .stat .value { font-size: 20px; font-weight: 500; margin-top: 4px; font-family: var(--mono); }
+    .stat .sub-value { color: var(--muted); font-size: 11px; margin-top: 2px; font-family: var(--mono); }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .toolbar .filters { display: flex; gap: 4px; }
+    .pill {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .pill:hover { color: var(--text); }
+    .pill.active { background: var(--accent-soft); color: #fff; border-color: var(--accent); }
+    .pill[data-filter="jd"].active    { background: #1d4a3a; border-color: var(--jd); color: var(--jd); }
+    .pill[data-filter="nonjd"].active { background: #4a3d1d; border-color: var(--nonjd); color: var(--nonjd); }
+    .toolbar .spacer { flex: 1; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-weight: 500;
+      padding: 10px 12px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 13px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: var(--panel-2); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-family: var(--mono); }
+    .badge-jd    { background: rgba(70, 192, 142, 0.12); color: var(--jd);    border: 1px solid rgba(70, 192, 142, 0.25); }
+    .badge-nonjd { background: rgba(192, 160, 70, 0.12); color: var(--nonjd); border: 1px solid rgba(192, 160, 70, 0.25); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .num { text-align: right; }
+    .miner { color: var(--text); }
+    .miner.empty { color: var(--muted); }
+
+    .footer-bar { display: flex; justify-content: space-between; align-items: center; padding: 14px 4px 0; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .footer-bar button {
+      background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+      font-family: var(--mono); font-size: 12px; padding: 6px 12px; border-radius: 4px; cursor: pointer;
+    }
+    .footer-bar button:hover:not(:disabled) { color: var(--text); }
+    .footer-bar button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .empty, .loading, .errbox {
+      padding: 32px; text-align: center; color: var(--muted);
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .errbox { color: var(--danger); }
+    .skeleton { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+
+    .legend { display: flex; gap: 14px; margin-top: 20px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend .dot.jd    { background: var(--jd); }
+    .legend .dot.nonjd { background: var(--nonjd); }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <h1><span class="pool">DMND</span> · JD blocks</h1>
+      <div class="sub">Bitcoin blocks mined by DMND, classified by Job Declaration via coinbase scriptsig.</div>
+    </div>
+    <div class="sub" id="updatedAt"></div>
+  </header>
+
+  <section class="stats" id="stats">
+    <div class="stat skeleton"><div class="label">Total DMND blocks</div><div class="value">—</div></div>
+    <div class="stat skeleton"><div class="label">JD blocks</div><div class="value">—</div></div>
+    <div class="stat skeleton"><div class="label">JD share</div><div class="value">—</div></div>
+    <div class="stat skeleton"><div class="label">Latest block</div><div class="value">—</div></div>
+    <div class="stat skeleton"><div class="label">Total fees captured</div><div class="value">—</div></div>
+    <div class="stat skeleton"><div class="label">Total reward</div><div class="value">—</div></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="filters">
+      <button class="pill active" data-filter="all">all</button>
+      <button class="pill"        data-filter="jd">JD</button>
+      <button class="pill"        data-filter="nonjd">non-JD</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="sub" id="rangeLabel"></div>
+  </div>
+
+  <div id="tableMount">
+    <div class="loading">Loading blocks…</div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot jd"></span> JD = miner-declared template (<code>/DMND/&lt;miner&gt;/</code>)</span>
+    <span><span class="dot nonjd"></span> non-JD = pool-declared template (<code>DDxDD</code>)</span>
+  </div>
+</main>
+
+<script>
+const API = '/api/jd-blocks';
+const PAGE = 50;
+let state = { offset: 0, filter: 'all', total: 0 };
+
+const fmt = {
+  num:   (n) => n === null || n === undefined ? '—' : Number(n).toLocaleString(),
+  pct:   (n) => n === null || n === undefined ? '—' : (n * 100).toFixed(1) + '%',
+  btc:   (n) => n === null || n === undefined ? '—' : Number(n).toFixed(4) + ' BTC',
+  feeBtc:(n) => n === null || n === undefined ? '—' : Number(n).toFixed(4),
+  ago: (iso) => {
+    if (!iso) return '—';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 0) return 'just now';
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    const d = Math.floor(h / 24);
+    return d + 'd ago';
+  },
+  date: (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toISOString().slice(0, 16).replace('T', ' ') + 'Z';
+  },
+};
+
+async function load() {
+  const params = new URLSearchParams({
+    limit: PAGE,
+    offset: state.offset,
+    filter: state.filter,
+  });
+  const mount = document.getElementById('tableMount');
+  mount.innerHTML = '<div class="loading">Loading blocks…</div>';
+  try {
+    const r = await fetch(`${API}?${params}`);
+    if (!r.ok) throw new Error(`API ${r.status}`);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    state.total = data.stats.total;
+    renderStats(data.stats);
+    renderTable(data.blocks);
+    renderPagination();
+    document.getElementById('updatedAt').textContent =
+      'updated ' + new Date().toISOString().slice(11, 19) + 'Z';
+  } catch (e) {
+    mount.innerHTML = `<div class="errbox">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function renderStats(s) {
+  const html = `
+    <div class="stat">
+      <div class="label">Total DMND blocks</div>
+      <div class="value">${fmt.num(s.total)}</div>
+      <div class="sub-value">JD ${fmt.num(s.jd)} · non-JD ${fmt.num(s.nonjd)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">JD blocks</div>
+      <div class="value">${fmt.num(s.jd)}</div>
+      <div class="sub-value">miner-declared templates</div>
+    </div>
+    <div class="stat">
+      <div class="label">JD share</div>
+      <div class="value">${fmt.pct(s.jdShare)}</div>
+      <div class="sub-value">of all DMND blocks</div>
+    </div>
+    <div class="stat">
+      <div class="label">Latest block</div>
+      <div class="value">${s.latestHeight ? '#' + fmt.num(s.latestHeight) : '—'}</div>
+      <div class="sub-value">${fmt.ago(s.latestAt)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total fees captured</div>
+      <div class="value">${fmt.btc(s.totalFeesBtc)}</div>
+      <div class="sub-value">JD only ${fmt.btc(s.jdFeesBtc)}</div>
+    </div>
+    <div class="stat">
+      <div class="label">Total reward</div>
+      <div class="value">${fmt.btc(s.totalBtc)}</div>
+      <div class="sub-value">subsidy + fees</div>
+    </div>
+  `;
+  document.getElementById('stats').innerHTML = html;
+}
+
+function renderTable(blocks) {
+  const mount = document.getElementById('tableMount');
+  if (!blocks.length) {
+    mount.innerHTML = '<div class="empty">No blocks found.</div>';
+    return;
+  }
+  const rows = blocks.map((b) => `
+    <tr>
+      <td><a href="https://mempool.space/block/${b.hash}" target="_blank" rel="noopener">#${fmt.num(b.height)}</a></td>
+      <td><span class="badge badge-${b.isJd ? 'jd' : 'nonjd'}">${b.isJd ? 'JD' : 'non-JD'}</span></td>
+      <td class="miner ${b.miner ? '' : 'empty'}">${b.miner || '—'}</td>
+      <td>${fmt.date(b.minedAt)}</td>
+      <td class="num">${fmt.feeBtc(b.feesBtc)}</td>
+      <td class="num">${fmt.feeBtc(b.subsidyBtc)}</td>
+      <td class="num">${fmt.feeBtc(b.totalBtc)}</td>
+      <td class="num">${fmt.num(b.txCount)}</td>
+    </tr>
+  `).join('');
+  mount.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Height</th><th>Type</th><th>Miner</th><th>Mined (UTC)</th>
+        <th class="num">Fees</th><th class="num">Subsidy</th>
+        <th class="num">Total</th><th class="num">Txs</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="footer-bar">
+      <button id="prev" ${state.offset === 0 ? 'disabled' : ''}>← Prev</button>
+      <span id="rangeText"></span>
+      <button id="next">Next →</button>
+    </div>
+  `;
+  document.getElementById('prev').onclick = () => { state.offset = Math.max(0, state.offset - PAGE); load(); };
+  document.getElementById('next').onclick = () => { state.offset += PAGE; load(); };
+  renderPagination();
+}
+
+function renderPagination() {
+  const visibleEnd = Math.min(state.offset + PAGE, state.total);
+  const text = state.total === 0 ? '' : `showing ${state.offset + 1}–${visibleEnd} of ${fmt.num(state.total)}`;
+  const el = document.getElementById('rangeText');
+  if (el) el.textContent = text;
+  document.getElementById('rangeLabel').textContent =
+    state.filter === 'all' ? '' : `filter: ${state.filter}`;
+}
+
+document.querySelectorAll('.pill').forEach((p) => {
+  p.onclick = () => {
+    document.querySelectorAll('.pill').forEach((x) => x.classList.remove('active'));
+    p.classList.add('active');
+    state.filter = p.dataset.filter;
+    state.offset = 0;
+    load();
+  };
+});
+
+load();
+</script>
+</body>
+</html>
