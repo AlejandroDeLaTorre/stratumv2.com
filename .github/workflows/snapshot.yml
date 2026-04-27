@@ -18,3 +18,7 @@ jobs:
         run: |
           curl -s -X GET https://stratumv2.com/api/difficulty-alert \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+            - name: Scan recent blocks for DMND JD activity
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/scan-jd-blocks.js
